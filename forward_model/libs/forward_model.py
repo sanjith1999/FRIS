@@ -4,13 +4,13 @@ import scipy.special
 import matplotlib.pyplot as plt
 from torch import nn
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Initializing important parameters
-def init_parameters(NA_, Rindex_, lambda_, dx_, Nx_, Ny_, Nz_, patch_size_=None, verbose=False,device_ = None):
-    global Nx, Ny, Nz, exPSF_3D, emPSF_3D,device
+def init_parameters(NA_, Rindex_, lambda_, dx_, Nx_, Ny_, Nz_, patch_size_=None, verbose=False, device_=None):
+    global Nx, Ny, Nz, exPSF_3D, emPSF_3D, device
 
     Nx, Ny, Nz = Nx_, Ny_, Nz_
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     try:
         psf = psf_model(NA_, Rindex_, lambda_, dx_, Nx, Ny, Nz).to(device)
@@ -21,7 +21,7 @@ def init_parameters(NA_, Rindex_, lambda_, dx_, Nx_, Ny_, Nz_, patch_size_=None,
         print("Point Spread Function Initialization Failed...!!!")
 
 
-# Initializing DMD Pattern
+# Initializing DMD Pattern : Simple Model
 def init_DMD(patch_size_=None, verbose=False):
     global ht_2D
 
@@ -31,9 +31,8 @@ def init_DMD(patch_size_=None, verbose=False):
         patch_size = max(min(Nx, Ny)//20, 1)
 
     try:
-        ht_2D = (torch.randn(Nx//patch_size + 1, Ny//patch_size +1) > 0).float()
+        ht_2D = (torch.randn(Nx//patch_size + 1, Ny//patch_size + 1) > 0).float()
         ht_2D = ht_2D.repeat_interleave(patch_size, dim=0).repeat_interleave(patch_size, dim=1)[:Nx, :Ny]
-        print("Sucessfully Initialized DMD Pattern...!!!")
         if verbose:
             show_image(ht_2D, "Excitation Pattern", fig_size=(5, 5))
 
@@ -41,10 +40,22 @@ def init_DMD(patch_size_=None, verbose=False):
         print("DMD Pattern Initialization Failed...!!!")
 
 
+# Initializing DMD Patterns : Extended Model
+def init_DMD_patterns(m):
+    global Ht_2D_list
+    Ht_2D_list = []
+    for _ in range(m):
+        init_DMD()
+        Ht_2D_list.append(ht_2D)
+
+
 # Forward model of a single measurement
-def forward_model(X, verbose=0):
+def forward_model(X, Ht_2D=None, verbose=0):
     ht_3D = torch.zeros(1, Nz, Nx, Ny).float().to(device)
-    ht_3D[:, Nz // 2] = ht_2D
+    if Ht_2D is None:
+        ht_3D[:, Nz // 2] = ht_2D
+    else:
+        ht_3D[:, Nz//2] = Ht_2D
     H1 = conv_3D(exPSF_3D, ht_3D)
     H2 = (H1.abs()**2).sum(dim=0)
 
@@ -71,8 +82,8 @@ def forward_model(X, verbose=0):
     verbose = 3 -> Excitation Pattern & H2
     """
     if verbose > 0:
-        if verbose >1:
-            if verbose>2:
+        if verbose > 1:
+            if verbose > 2:
                 show_image(ht_2D, "Excitation Pattern", fig_size=(3, 3))
                 show_planes(coherent_out, title=f'H2', N_z=Nz)
             show_planes(I, title=f"Object", N_z=Nz)
@@ -80,6 +91,33 @@ def forward_model(X, verbose=0):
         show_image(det_R, "Detected Image", (3, 3))
 
     return det_Y
+
+
+# Extended forward model
+def extended_forward_model(X,verbose=False):
+    Y = torch.tensor([]).to(device)
+    for Ht_2D in Ht_2D_list:
+        Yi = forward_model(X, Ht_2D,verbose=verbose)
+        Yi_flatten = Yi.flatten()
+        Y = torch.cat((Y, Yi_flatten), dim=0)
+    return Y
+
+
+# Initializng parameters for One Shot Model
+def init_one_shot(m):
+    global A
+    try:
+        A = torch.zeros(Nx*Ny*m,Nx*Ny*Nz).float().to(device)
+        I = torch.zeros(1, Nz, Nx, Ny).float().to(device)
+        for i_z in range(Nz):
+            for i_x in range(Nx):
+                for i_y  in range(Ny):
+                    I[0,i_z,i_x,i_y] = 1
+                    A [:,i_z*Ny*Nx+ i_x*Ny+i_y] = extended_forward_model(I)
+                    I[0,i_z,i_x,i_y] = 0
+        print("Matrix A is intialized sucessfully...!!!")
+    except:
+        print("Failed to Initialize A...!!!")
 
 
 # Helper Function
@@ -244,7 +282,7 @@ def show_psf(PSF_3D):
 
 # Showing planes of a 3D Tensor
 def show_planes(outs, title, N_z=256):  # outs.shape: [Nz, Nx, Ny]
-    z_planes = range(0, N_z, max(N_z//8,1))
+    z_planes = range(0, N_z, max(N_z//8, 1))
     plt.figure(figsize=(20, 2))
     for i, z_idx in enumerate(z_planes):
         plt.subplot(1, len(z_planes), i+1)
@@ -257,6 +295,8 @@ def show_planes(outs, title, N_z=256):  # outs.shape: [Nz, Nx, Ny]
     plt.show()
 
 # Showing specified planes of a 3D Tensor
+
+
 def show_planes_z(outs, title, z_planes):  # outs.shape: [Nz, Nx, Ny]
     plt.figure(figsize=(20, 2))
     for i, z_idx in enumerate(z_planes):

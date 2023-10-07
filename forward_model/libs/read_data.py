@@ -17,7 +17,7 @@ def init_parameters(Nx_, Ny_, Nz_):
 
 
 # Function to Store
-def load_object(object_type="blood_cell"):
+def load_object(object_type="blood_cell",verbose=False):
     try:
         if object_type == "bead":
             load_fluorescense_bead()
@@ -30,7 +30,8 @@ def load_object(object_type="blood_cell"):
         else:
             print("Object type is not available...!!!")
             return -1
-        print("Object Loaded Sucessfully...!!!")
+        if verbose:
+            print("Object Loaded Sucessfully...!!!")
     except:
         print("Failed to Load Object...!!!")
     return 0
@@ -48,8 +49,7 @@ def load_fluorescense_bead():
         image_path = f'./data/Bead/z{slice_index:04d}.tif'
         image = tifffile.imread(image_path).astype(float)  # Read image as float
         assert image is not None
-        r_image = torch.tensor(
-            np.array(Image.fromarray(image).resize((Nx, Ny)))).to(device)
+        r_image = torch.tensor(np.array(Image.fromarray(image).resize((Nx, Ny)))).to(device)
 
         # Store the image data in the tensor
         X[0, slice_index-low_l, :, :] = r_image
@@ -81,7 +81,7 @@ def create_spherical_object():
 
 # Reading the NeuralCell, BloodCell Data
 def load_cell_data(is_neural=True):
-    global raw_data_type
+    global raw_data_type,raw_data
     if (raw_data_type != "neural_cell" and is_neural):
         with h5py.File('./data/Deep2/PS_SOM_mice_20190317.mat', 'r') as mat_file:
             Data = (mat_file['Data']['cell'])[3,0]
@@ -97,7 +97,6 @@ def load_cell_data(is_neural=True):
 
     # Picking a Randow Cuboid from Object
     tensor_size = raw_data.shape
-    print(Nx,Ny,Nz)
 
     # Generate random coordinates within valid range
     x_start = random.randint(0, tensor_size[1] - Nx)
@@ -105,5 +104,6 @@ def load_cell_data(is_neural=True):
     z_start = random.randint(0, tensor_size[0] - Nz)
 
     # Extract the cube
-    X[0,:,:,:] = raw_data[z_start:z_start+Nz, x_start:x_start+Nx, y_start:y_start+Ny]
-    X = (X - X.min())/(X.max()- X.min()+(1e-12))
+
+    X_ = raw_data[z_start:z_start+Nz, x_start:x_start+Nx, y_start:y_start+Ny]
+    X[0,:,:,:] = (X_ - X_.min())/(X_.max()- X_.min()+(1e-10))
