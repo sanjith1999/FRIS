@@ -31,8 +31,10 @@ def init_DMD(patch_size_=None, verbose=False):
         patch_size = max(min(Nx, Ny)//20, 1)
 
     try:
-        ht_2D = (torch.randn(Nx//patch_size + 1, Ny//patch_size + 1) > 0).float()
-        ht_2D = ht_2D.repeat_interleave(patch_size, dim=0).repeat_interleave(patch_size, dim=1)[:Nx, :Ny]
+        ht_2D = (torch.randn(Nx//patch_size + 1,
+                 Ny//patch_size + 1) > 0).float()
+        ht_2D = ht_2D.repeat_interleave(
+            patch_size, dim=0).repeat_interleave(patch_size, dim=1)[:Nx, :Ny]
         if verbose:
             show_image(ht_2D, "Excitation Pattern", fig_size=(5, 5))
 
@@ -50,7 +52,10 @@ def init_DMD_patterns(m):
 
 
 # Forward model of a single measurement
-def forward_model(X, Ht_2D=None, verbose=0):
+def forward_model(X, Ht_2D=None, verbose=0, return_planes=None):
+    if not return_planes:
+        return_planes = Nz//2
+
     ht_3D = torch.zeros(1, Nz, Nx, Ny).float().to(device)
     if Ht_2D is None:
         ht_3D[:, Nz // 2] = ht_2D
@@ -61,7 +66,7 @@ def forward_model(X, Ht_2D=None, verbose=0):
 
     H3 = X * H2
     Y = conv_3D(emPSF_3D, H3).abs()[0]
-    det_Y = Y[round(Nz/2), :, :]
+    det_Y = Y[return_planes, :, :]
 
     ####### DETACH IMPORTANT OBJECTS TO VISUALIZE ##########
     # Excitation Pattern Convolved with Coherent PSF : H2
@@ -94,27 +99,27 @@ def forward_model(X, Ht_2D=None, verbose=0):
 
 
 # Extended forward model
-def extended_forward_model(X,verbose=False):
+def extended_forward_model(X, verbose=False, measure_planes=None):
     Y = torch.tensor([]).to(device)
     for Ht_2D in Ht_2D_list:
-        Yi = forward_model(X, Ht_2D,verbose=verbose)
+        Yi = forward_model(X, Ht_2D, verbose=verbose, return_planes=measure_planes)
         Yi_flatten = Yi.flatten()
         Y = torch.cat((Y, Yi_flatten), dim=0)
     return Y
 
 
 # Initializng parameters for One Shot Model
-def init_one_shot(m):
+def init_one_shot(m,num_planes = 1):
     global A
     try:
-        A = torch.zeros(Nx*Ny*m,Nx*Ny*Nz).float().to(device)
+        A = torch.zeros(Nx*Ny*num_planes*m, Nx*Ny*Nz).float().to(device)
         I = torch.zeros(1, Nz, Nx, Ny).float().to(device)
         for i_z in range(Nz):
             for i_x in range(Nx):
-                for i_y  in range(Ny):
-                    I[0,i_z,i_x,i_y] = 1
-                    A [:,i_z*Ny*Nx+ i_x*Ny+i_y] = extended_forward_model(I)
-                    I[0,i_z,i_x,i_y] = 0
+                for i_y in range(Ny):
+                    I[0, i_z, i_x, i_y] = 1
+                    A[:, i_z*Ny*Nx + i_x*Ny+i_y] = extended_forward_model(I,measure_planes=[(i*Nz)//(num_planes+1) for i in range(1,num_planes+1)])
+                    I[0, i_z, i_x, i_y] = 0
         print("Matrix A is intialized sucessfully...!!!")
     except:
         print("Failed to Initialize A...!!!")
