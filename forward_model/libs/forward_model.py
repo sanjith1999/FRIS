@@ -87,6 +87,7 @@ def forward_model(X, Ht_2D=None, verbose=0, return_planes=None):
     verbose = 3 -> Excitation Pattern & H2
     """
     if verbose > 0:
+        print(f"Shapes of vectors\n exPSF: {exPSF_3D.shape}\n H1: {H1.shape}\n H2: {H2.shape}\n emPSF: {emPSF_3D.shape}\n H3: {H3.shape}")
         if verbose > 1:
             if verbose > 2:
                 show_image(ht_2D, "Excitation Pattern", fig_size=(3, 3))
@@ -143,12 +144,9 @@ def calculate_phi(NPXLS):
 # 3D Convolution
 def conv_3D(PSF_3D, H):
 
-    Ht_fft = torch.fft.fftshift(torch.fft.fftn(torch.fft.ifftshift(
-        H, dim=(-3, -2, -1)), dim=(-3, -2, -1)), dim=(-3, -2, -1))
-    PSF_fft = torch.fft.fftshift(torch.fft.fftn(torch.fft.ifftshift(
-        PSF_3D, dim=(-3, -2, -1)), dim=(-3, -2, -1)), dim=(-3, -2, -1))
-    conv_PSF_H = torch.fft.fftshift(torch.fft.ifftn(torch.fft.ifftshift(
-        PSF_fft * Ht_fft, dim=(-3, -2, -1)), dim=(-3, -2, -1)), dim=(-3, -2, -1))
+    Ht_fft = torch.fft.fftshift(torch.fft.fftn(torch.fft.ifftshift(H, dim=(-3, -2, -1)), dim=(-3, -2, -1)), dim=(-3, -2, -1))
+    PSF_fft = torch.fft.fftshift(torch.fft.fftn(torch.fft.ifftshift(PSF_3D, dim=(-3, -2, -1)), dim=(-3, -2, -1)), dim=(-3, -2, -1))
+    conv_PSF_H = torch.fft.fftshift(torch.fft.ifftn(torch.fft.ifftshift(PSF_fft * Ht_fft, dim=(-3, -2, -1)), dim=(-3, -2, -1)), dim=(-3, -2, -1))
 
     return conv_PSF_H
 
