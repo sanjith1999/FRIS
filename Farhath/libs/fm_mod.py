@@ -22,12 +22,12 @@ def init_parameters(NA_, Rindex_, lambda_, dx_, dy_, dz_, Nx_, Ny_, Nz_, patch_s
 
 
 # Initializing DMD Pattern : Simple Model
-def init_DMD(ep_dx_= None, ep_dy_=None, verbose=False):
+def init_DMD(ep_dx__= None, ep_dy__=None, verbose=False):
     global ht_2D
 
-    if (ep_dx_ & ep_dy_):
-        ep_dx = ep_dx_
-        ep_dy = ep_dy_
+    if (ep_dx__& ep_dy__):
+        ep_dx = ep_dx__
+        ep_dy = ep_dy__
     else:
         ep_dx = max(min(Nx)//20 , 1)
         ep_dy = max(min(Ny)//20 , 1)
@@ -45,11 +45,11 @@ def init_DMD(ep_dx_= None, ep_dy_=None, verbose=False):
 
 
 # Initializing DMD Patterns : Extended Model
-def init_DMD_patterns(m):
+def init_DMD_patterns(m,ep_dx_=None,ep_dy_=None):
     global Ht_2D_list
     Ht_2D_list = []
     for _ in range(m):
-        init_DMD()
+        init_DMD(ep_dx__=ep_dx_, ep_dy__=ep_dy_)
         Ht_2D_list.append(ht_2D)
 
 
