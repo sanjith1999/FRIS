@@ -6,7 +6,7 @@ from torch import nn
 
 
 # Initializing important parameters
-def init_parameters(NA_, Rindex_, lambda_, dx_, dy_, dz_, Nx_, Ny_, Nz_, patch_size_=None, verbose=False, device_=None):
+def init_parameters(NA_, Rindex_, lambda_, dx_, dy_, dz_, Nx_, Ny_, Nz_, ep_dx_=None, ep_dy_= None, verbose=False, device_=None):
     global Nx, Ny, Nz, exPSF_3D, emPSF_3D, device
 
     Nx, Ny, Nz = Nx_, Ny_, Nz_
@@ -33,10 +33,8 @@ def init_DMD(ep_dx__= None, ep_dy__=None, verbose=False):
         ep_dy = max(min(Ny)//20 , 1)
 
     try:
-        ht_2D = (torch.randn(Nx//ep_dx + 1,
-                 Ny//ep_dy + 1) > 0).float()
-        ht_2D = ht_2D.repeat_interleave(
-            ep_dx, dim=0).repeat_interleave(ep_dy, dim=1)[:Nx, :Ny]
+        ht_2D = (torch.randn(Nx//ep_dx + 1,Ny//ep_dy + 1) > 0).float()
+        ht_2D = ht_2D.repeat_interleave(ep_dx, dim=0).repeat_interleave(ep_dy, dim=1)[:Nx, :Ny]
         if verbose:
             show_image(ht_2D, "Excitation Pattern", fig_size=(5, 5))
 

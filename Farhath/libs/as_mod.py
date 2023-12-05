@@ -3,14 +3,14 @@ import numpy as np
 from torch import nn
 import matplotlib.pyplot as plt
 
-def get_G_with_window(n_neurons_input = 300, neuron_size = 0.0003, delta_z = 0.004, lambda_ = 750e-6, w = 4,mask_factor = 1):
+def get_G_with_window(n_neurons_input = 300, dx = 300, delta_z = 4000, lambda_ = 0.750, w = 4,mask_factor = 1):
     global non_evancent_area
     '''
         Function to calculate the propagation transfer function (frequency domain)
 
         Args:
             n_neurons_input  : number of neurons on one side of the input layer
-            neuron_size      : size of a neuron
+            dx               : size of a neuron
             delta_z          : distance between two adjacent layers
             lambda_          : wavelength
             w                : window size
@@ -18,7 +18,7 @@ def get_G_with_window(n_neurons_input = 300, neuron_size = 0.0003, delta_z = 0.0
         Returns:
             G                : Propogation transfer function (frequency domain) 
     '''
-    dx= neuron_size
+    
     N= n_neurons_input
     
     # if (delta_z == 0): #usecase : delta_z =0 , there is no diffraction.
@@ -41,7 +41,7 @@ class d2nnASwWindow_layer(nn.Module):
         A diffractive layer of the D2NN
         - uses Angular Spectrum Method to compute wave propagation
     '''
-    def __init__(self, n_neurons_input, n_neurons_output, delta_z, lambda_, neuron_size, learn_type='both', device= 'cpu', window_size= 4, weights= None, mask_factor=1, **kwargs):
+    def __init__(self, n_neurons_input, n_neurons_output, delta_z, lambda_, dx, learn_type='both', device= 'cpu', window_size= 4, weights= None, mask_factor=1, **kwargs):
         '''
             Initlialize the diffractive layer
 
@@ -50,7 +50,7 @@ class d2nnASwWindow_layer(nn.Module):
                 n_neurons_output : Number of output neurons
                 delta_z : Distance between two adjacent layers of the D2NN
                 lambda_ : Wavelength
-                neuron_size : Size of the neuron
+                dx : Size of the neuron
                 learn_type : Type of learnable transmission coefficients
                 device  : Device to run the model on
                 window_size : Angular Spectrum method computational window size factor(default=4)
@@ -61,12 +61,12 @@ class d2nnASwWindow_layer(nn.Module):
         self.n_o               = n_neurons_output
         self.delta_z           = delta_z
         self.lambda_           = lambda_
-        self.neuron_size       = neuron_size
+        self.dx                = dx
         self.learn_type        = learn_type
         self.w                 = window_size
         self.mask_factor       = mask_factor
         self.device            = device
-        self.G = get_G_with_window(self.n_i, self.neuron_size, self.delta_z, self.lambda_, w= self.w,mask_factor=self.mask_factor).to(device) # Obtain frequency domain diffraction propogation function/ transformation
+        self.G = get_G_with_window(self.n_i, self.dx, self.delta_z, self.lambda_, w= self.w,mask_factor=self.mask_factor).to(device) # Obtain frequency domain diffraction propogation function/ transformation
 
         if weights!= None:
             amp_weights= weights['amp_weights']
@@ -112,7 +112,7 @@ class d2nnASwWindow_layer(nn.Module):
                 self.amp_weights = amp_weights.to(device)*100000  
     
     def find_transfer_function(self, delta_z,mask_factor):
-        self.G = get_G_with_window(self.n_i, self.neuron_size, delta_z, self.lambda_, w= self.w,mask_factor=mask_factor).to(self.device)
+        self.G = get_G_with_window(self.n_i, self.dx, delta_z, self.lambda_, w= self.w,mask_factor=mask_factor).to(self.device)
                 
     def forward(self, input_e_field):
         '''
