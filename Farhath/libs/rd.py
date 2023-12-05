@@ -46,7 +46,7 @@ def load_fluorescense_bead():
 
     for slice_index in range(low_l, up_l):
         # Update the path accordingly
-        image_path = f'./data/Bead/z{slice_index:04d}.tif'
+        image_path = f'./Data/Bead/z{slice_index:04d}.tif'
         image = tifffile.imread(image_path).astype(float)  # Read image as float
         assert image is not None
         r_image = torch.tensor(np.array(Image.fromarray(image).resize((Nx, Ny)))).to(device)
@@ -83,14 +83,14 @@ def create_spherical_object():
 def load_cell_data(is_neural=True):
     global raw_data_type,raw_data
     if (raw_data_type != "neural_cell" and is_neural):
-        with h5py.File('./data/Deep2/PS_SOM_mice_20190317.mat', 'r') as mat_file:
+        with h5py.File('D:/FYP/Data/PS_SOM_mice_20190317.mat', 'r') as mat_file:
             Data = (mat_file['Data']['cell'])[3,0]
             arr = mat_file[Data][:]
             raw_data = torch.from_numpy(arr).float().to(device)
         raw_data_type = "neural_cell"
     
     elif raw_data_type != "blood_cell" and (not is_neural):
-        with h5py.File('./data/Deep2/BV_03102021.mat', 'r') as mat_file:
+        with h5py.File('D:/FYP/Data/BV_03102021.mat', 'r') as mat_file:
             Data = (mat_file['Data']['cell'])[:]
             raw_data = torch.from_numpy(Data).to(device)
         raw_data_type = "blood_cell"
