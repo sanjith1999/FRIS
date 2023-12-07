@@ -6,14 +6,15 @@ from torch import nn
 
 
 # Initializing important parameters
-def init_parameters(NA_, Rindex_, lambda_, dx_, Nx_, Ny_, Nz_, patch_size_=None, verbose=False, device_=None):
-    global Nx, Ny, Nz, exPSF_3D, emPSF_3D, device
+def init_parameters(NA_, Rindex_, lambda_, dx_, dy_, dz_, Nx_, Ny_, Nz_, verbose=False, device_=None):
+    global Nx, Ny, Nz, dx, dy, dz, exPSF_3D, emPSF_3D, device
 
     Nx, Ny, Nz = Nx_, Ny_, Nz_
+    dx, dy, dz = dx_, dy_, dz_
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     try:
-        psf = psf_model(NA_, Rindex_, lambda_, dx_, Nx, Ny, Nz).to(device)
+        psf = psf_model(NA_, Rindex_, lambda_, dx, dy, dz, Nx, Ny, Nz).to(device)
         exPSF_3D = psf().detach().permute(0, 3, 1, 2)
         emPSF_3D = (exPSF_3D.abs()**2).sum(dim=0).unsqueeze(dim=0)  # IPSF
         print("Sucessfully Initialized Point Spread Function...!!!")
@@ -22,19 +23,13 @@ def init_parameters(NA_, Rindex_, lambda_, dx_, Nx_, Ny_, Nz_, patch_size_=None,
 
 
 # Initializing DMD Pattern : Simple Model
-def init_DMD(patch_size_=None, verbose=False):
+def init_DMD(ep_dx_, ep_dy_, verbose=False):
     global ht_2D
-
-    if (patch_size_):
-        patch_size = patch_size_
-    else:
-        patch_size = max(min(Nx, Ny)//20, 1)
+    ep_dx , ep_dy= max(round(ep_dx_/dx),1), max(round(ep_dy_/dy),1)
 
     try:
-        ht_2D = (torch.randn(Nx//patch_size + 1,
-                 Ny//patch_size + 1) > 0).float()
-        ht_2D = ht_2D.repeat_interleave(
-            patch_size, dim=0).repeat_interleave(patch_size, dim=1)[:Nx, :Ny]
+        ht_2D = (torch.randn(Nx//ep_dx + 1,Ny//ep_dy + 1) > 0).float()
+        ht_2D = ht_2D.repeat_interleave(ep_dx, dim=0).repeat_interleave(ep_dy, dim=1)[:Nx, :Ny]
         if verbose:
             show_image(ht_2D, "Excitation Pattern", fig_size=(5, 5))
 
@@ -43,11 +38,11 @@ def init_DMD(patch_size_=None, verbose=False):
 
 
 # Initializing DMD Patterns : Extended Model
-def init_DMD_patterns(m):
+def init_DMD_patterns(m,ep_dx__=None,ep_dy__=None):
     global Ht_2D_list
     Ht_2D_list = []
     for _ in range(m):
-        init_DMD()
+        init_DMD(ep_dx_=ep_dx__, ep_dy_=ep_dy__)
         Ht_2D_list.append(ht_2D)
 
 
@@ -85,7 +80,10 @@ def forward_model(X, Ht_2D=None, verbose=0, return_planes=None):
     verbose = 1 -> Visualize Detected Image
     verbose = 2 -> Object & Y
     verbose = 3 -> Excitation Pattern & H2
+    verbose = 4 -> Printout the shapes of all matrices
     """
+    if verbose >3:
+        print(f"Shapes of vectors\n exPSF: {exPSF_3D.shape}\n H1: {H1.shape}\n H2: {H2.shape}\n emPSF: {emPSF_3D.shape}\n H3: {H3.shape}")
     if verbose > 0:
         if verbose > 1:
             if verbose > 2:
@@ -143,24 +141,23 @@ def calculate_phi(NPXLS):
 # 3D Convolution
 def conv_3D(PSF_3D, H):
 
-    Ht_fft = torch.fft.fftshift(torch.fft.fftn(torch.fft.ifftshift(
-        H, dim=(-3, -2, -1)), dim=(-3, -2, -1)), dim=(-3, -2, -1))
-    PSF_fft = torch.fft.fftshift(torch.fft.fftn(torch.fft.ifftshift(
-        PSF_3D, dim=(-3, -2, -1)), dim=(-3, -2, -1)), dim=(-3, -2, -1))
-    conv_PSF_H = torch.fft.fftshift(torch.fft.ifftn(torch.fft.ifftshift(
-        PSF_fft * Ht_fft, dim=(-3, -2, -1)), dim=(-3, -2, -1)), dim=(-3, -2, -1))
+    Ht_fft = torch.fft.fftshift(torch.fft.fftn(torch.fft.ifftshift(H, dim=(-3, -2, -1)), dim=(-3, -2, -1)), dim=(-3, -2, -1))
+    PSF_fft = torch.fft.fftshift(torch.fft.fftn(torch.fft.ifftshift(PSF_3D, dim=(-3, -2, -1)), dim=(-3, -2, -1)), dim=(-3, -2, -1))
+    conv_PSF_H = torch.fft.fftshift(torch.fft.ifftn(torch.fft.ifftshift(PSF_fft * Ht_fft, dim=(-3, -2, -1)), dim=(-3, -2, -1)), dim=(-3, -2, -1))
 
     return conv_PSF_H
 
 
 # PSF Model as a neural node
 class psf_model(nn.Module):
-    def __init__(self, NA, Rindex, lambda_, dx, Nx, Ny, Nz):
+    def __init__(self, NA, Rindex, lambda_, dx, dy, dz, Nx, Ny, Nz):
         super().__init__()
         self.NA = NA
         self.Rindex = Rindex
         self.lambda_ = lambda_
         self.dx = dx
+        self.dy = dy
+        self.dz = dz
         self.Nx = Nx
         self.Ny = Ny
         self.Nz = Nz
@@ -173,8 +170,6 @@ class psf_model(nn.Module):
 
     def init_psf_params(self):
         self.alpha = np.arcsin(self.NA / self.Rindex)
-        self.dy = self.dx
-        self.dz = self.dx
 
         self.x = self.dx * torch.arange(-self.Nx//2+1, self.Nx//2+1)
         self.y = self.dy * torch.arange(-self.Ny//2+1, self.Ny//2+1)
