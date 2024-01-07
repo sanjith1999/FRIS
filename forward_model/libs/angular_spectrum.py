@@ -45,9 +45,9 @@ class d2nnASwWindow_layer(nn.Module):
         '''
         super(d2nnASwWindow_layer, self).__init__()
         self.Nx, self.Ny       = Nx, Ny
-        self.dx, self.dy       = dx, dy
-        self.dz                = dz
-        self.lambda_           = lambda_
+        self.dx, self.dy       = dx*1e-6, dy*1e-6
+        self.dz                = dz*1e-6
+        self.lambda_           = lambda_*1e-6
         self.w                 = window_size
         self.mask_factor       = mask_factor
         self.device            = device
@@ -55,7 +55,7 @@ class d2nnASwWindow_layer(nn.Module):
             
     
     def find_transfer_function(self,dz_, mask_factor_):
-        self.G = get_G_with_window(Nx = self.Nx, Ny = self.Ny, dx = self.dx, dy = self.dy, dz = dz_, lambda_ = self.lambda_, w = self.w,mask_factor = mask_factor_).to(self.device)
+        self.G = get_G_with_window(Nx = self.Nx, Ny = self.Ny, dx = self.dx, dy = self.dy, dz = dz_*1e-6, lambda_ = self.lambda_, w = self.w,mask_factor = mask_factor_).to(self.device)
                 
     def forward(self, input_e_field):
         '''

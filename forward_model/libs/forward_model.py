@@ -47,7 +47,7 @@ def init_DMD_patterns(m,ep_dx__=None,ep_dy__=None):
 
 
 # Forward model of a single measurement
-def forward_model(X, Ht_2D=None, verbose=0, return_planes=None):
+def forward_model(X, Ht_2D=None, verbose=0, return_planes=None, down_factor=None):
     if not return_planes:
         return_planes = Nz//2
 
@@ -62,6 +62,8 @@ def forward_model(X, Ht_2D=None, verbose=0, return_planes=None):
     H3 = X * H2
     Y = conv_3D(emPSF_3D, H3).abs()[0]
     det_Y = Y[return_planes, :, :]
+    if down_factor is not None:
+        det_Y = nn.functional.interpolate(det_Y.unsqueeze(0).unsqueeze(0), scale_factor=down_factor, mode='area').squeeze()
 
     ####### DETACH IMPORTANT OBJECTS TO VISUALIZE ##########
     # Excitation Pattern Convolved with Coherent PSF : H2
@@ -93,21 +95,22 @@ def forward_model(X, Ht_2D=None, verbose=0, return_planes=None):
             show_planes(R, title=f'Y', N_z=Nz)
         show_image(det_R, "Detected Image", (3, 3))
 
+
     return det_Y
 
 
 # Extended forward model
-def extended_forward_model(X, verbose=False, measure_planes=None):
+def extended_forward_model(X, verbose=False, measure_planes=None,down_factor = None):
     Y = torch.tensor([]).to(device)
     for Ht_2D in Ht_2D_list:
-        Yi = forward_model(X, Ht_2D, verbose=verbose, return_planes=measure_planes)
+        Yi = forward_model(X, Ht_2D, verbose=verbose, return_planes=measure_planes,down_factor=down_factor)
         Yi_flatten = Yi.flatten()
         Y = torch.cat((Y, Yi_flatten), dim=0)
     return Y
 
 
 # Initializng parameters for One Shot Model
-def init_one_shot(m,num_planes = 1):
+def init_one_shot(m,num_planes = 1,down_factor=None):
     global A
     try:
         A = torch.zeros(Nx*Ny*num_planes*m, Nx*Ny*Nz).float().to(device)
@@ -116,7 +119,7 @@ def init_one_shot(m,num_planes = 1):
             for i_x in range(Nx):
                 for i_y in range(Ny):
                     I[0, i_z, i_x, i_y] = 1
-                    A[:, i_z*Ny*Nx + i_x*Ny+i_y] = extended_forward_model(I,measure_planes=[(i*Nz)//(num_planes+1) for i in range(1,num_planes+1)])
+                    A[:, i_z*Ny*Nx + i_x*Ny+i_y] = extended_forward_model(I,measure_planes=[(i*Nz)//(num_planes+1) for i in range(1,num_planes+1)],down_factor=down_factor)
                     I[0, i_z, i_x, i_y] = 0
         print("Matrix A is intialized sucessfully...!!!")
     except:
