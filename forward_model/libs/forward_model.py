@@ -63,7 +63,7 @@ def forward_model(X, Ht_2D=None, verbose=0, return_planes=None, down_factor=None
     Y = conv_3D(emPSF_3D, H3).abs()[0]
     det_Y = Y[return_planes, :, :]
     if down_factor is not None:
-        det_Y = nn.functional.interpolate(det_Y.unsqueeze(0).unsqueeze(0), scale_factor=down_factor, mode='area').squeeze()
+        det_Y = nn.functional.interpolate(det_Y.unsqueeze(0).unsqueeze(0), scale_factor=(1,down_factor,down_factor), mode='area').squeeze()
 
     ####### DETACH IMPORTANT OBJECTS TO VISUALIZE ##########
     # Excitation Pattern Convolved with Coherent PSF : H2
@@ -106,6 +106,7 @@ def extended_forward_model(X, verbose=False, measure_planes=None,down_factor = N
         Yi = forward_model(X, Ht_2D, verbose=verbose, return_planes=measure_planes,down_factor=down_factor)
         Yi_flatten = Yi.flatten()
         Y = torch.cat((Y, Yi_flatten), dim=0)
+    
     return Y
 
 
@@ -113,7 +114,7 @@ def extended_forward_model(X, verbose=False, measure_planes=None,down_factor = N
 def init_one_shot(m,num_planes = 1,down_factor=None):
     global A
     try:
-        A = torch.zeros(Nx*Ny*num_planes*m, Nx*Ny*Nz).float().to(device)
+        A = torch.zeros(int(Nx*down_factor)*int(Ny*down_factor)*num_planes*m, Nx*Ny*Nz).float().to(device)
         I = torch.zeros(1, Nz, Nx, Ny).float().to(device)
         for i_z in range(Nz):
             for i_x in range(Nx):
