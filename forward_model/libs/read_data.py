@@ -9,20 +9,22 @@ raw_data_type = "Nothing"
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Initialized Parameters
-def init_parameters(Nx_, Ny_, Nz_):
-    global X, Nx, Ny, Nz
+def init_parameters(Nx_, Ny_, Nz_, dx_, dy_, dz_):
+    global X, Nx, Ny, Nz, step_x, step_y, step_z,dx, dy, dz
+    dx, dy, dz = dx_, dy_, dz_
+    step_x , step_y, step_z = max(1, int(dx_*3)), max(int(dy_*3),1) , max(int(dz_*3),1)
     Nx, Ny, Nz = Nx_, Ny_, Nz_
     X = torch.zeros(1, Nz, Nx, Ny).float().to(device)
     print("Sucessfully Initialized Read Data Parameters...!!!")
 
 
 # Function to Store
-def load_object(object_type="blood_cell",verbose=False):
+def load_object(object_type="blood_cell",verbose=False, radius = 5):
     try:
         if object_type == "bead":
             load_fluorescense_bead()
         elif object_type == "3D_sphere":
-            create_spherical_object()
+            create_spherical_object(radius = radius)
         elif object_type == "neural_cell":
             load_cell_data(True)
         elif object_type == "blood_cell":
@@ -56,7 +58,7 @@ def load_fluorescense_bead():
 
 
 # Creating 3D spehere
-def create_spherical_object():
+def create_spherical_object(radius = 20): # Radius ~ um
     # Create a grid of points in the 3D tensor space
     x = torch.linspace(-1, 1, Nx)
     y = torch.linspace(-1, 1, Ny)
@@ -67,11 +69,9 @@ def create_spherical_object():
 
     # Define the center and radius of the sphere
     center = torch.tensor([0.0, 0.0, 0.0])
-    radius = 0.5
 
     # Calculate the distance from each point in the grid to the center
-    distance = torch.sqrt(
-        (x - center[0])**2 + (y - center[1])**2 + (z - center[2])**2)
+    distance = torch.sqrt((x*dx - center[0])**2 + (y*dy - center[1])**2 + (z*dz - center[2])**2)
 
     # Create a mask to identify points inside the sphere
     inside_sphere = distance <= radius
@@ -99,11 +99,11 @@ def load_cell_data(is_neural=True):
     tensor_size = raw_data.shape
 
     # Generate random coordinates within valid range
-    x_start = random.randint(0, tensor_size[1] - Nx)
-    y_start = random.randint(0, tensor_size[2] - Ny)
-    z_start = random.randint(0, tensor_size[0] - Nz)
+    x_start = random.randint(0, tensor_size[1] - Nx*step_x)
+    y_start = random.randint(0, tensor_size[2] - Ny*step_y)
+    z_start = random.randint(0, tensor_size[0] - Nz*step_z)
 
     # Extract the cube
 
-    X_ = raw_data[z_start:z_start+Nz, x_start:x_start+Nx, y_start:y_start+Ny]
+    X_ = raw_data[z_start:z_start+Nz*step_z:step_z, x_start:x_start+Nx*step_x:step_x, y_start:y_start+Ny*step_y:step_y]
     X[0,:,:,:] = (X_ - X_.min())/(X_.max()- X_.min()+(1e-10))
