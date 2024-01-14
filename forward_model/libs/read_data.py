@@ -58,25 +58,23 @@ def load_fluorescense_bead():
 
 
 # Creating 3D spehere
-def create_spherical_object(radius = 20): # Radius ~ um
+def create_spherical_object(radius = 3): # Radius ~ um
     # Create a grid of points in the 3D tensor space
-    x = torch.linspace(-1, 1, Nx)
-    y = torch.linspace(-1, 1, Ny)
-    z = torch.linspace(-1, 1, Nz)
+    x = torch.linspace((-Nx)//2+1, Nx//2, Nx)
+    y = torch.linspace((-Ny)//2+1, Ny//2, Ny)
+    z = torch.linspace((-Nz)//2+1, Nz//2, Nz)
 
     # Create a meshgrid from the points
-    x, y, z = torch.meshgrid(z, x, y)
-
-    # Define the center and radius of the sphere
-    center = torch.tensor([0.0, 0.0, 0.0])
+    z, x, y = torch.meshgrid(z, x, y)
 
     # Calculate the distance from each point in the grid to the center
-    distance = torch.sqrt((x*dx - center[0])**2 + (y*dy - center[1])**2 + (z*dz - center[2])**2)
+    distance = torch.sqrt((x*dx)**2 + (y*dy)**2 + (z*dz)**2)
 
     # Create a mask to identify points inside the sphere
     inside_sphere = distance <= radius
     inside_sphere = inside_sphere.unsqueeze(0)
     X[inside_sphere] = 1
+    X[~inside_sphere] = 0
 
 
 # Reading the NeuralCell, BloodCell Data
