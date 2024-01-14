@@ -100,7 +100,7 @@ def forward_model(X, Ht_2D=None, verbose=0, return_planes=None, down_factor=None
 
 
 # Extended forward model
-def extended_forward_model(X, verbose=False, measure_planes=None,down_factor = None):
+def extended_forward_model(X, verbose=False, measure_planes=None,down_factor = 1):
     Y = torch.tensor([]).to(device)
     for Ht_2D in Ht_2D_list:
         Yi = forward_model(X, Ht_2D, verbose=verbose, return_planes=measure_planes,down_factor=down_factor)
@@ -111,7 +111,7 @@ def extended_forward_model(X, verbose=False, measure_planes=None,down_factor = N
 
 
 # Initializng parameters for One Shot Model
-def init_one_shot(m,num_planes = 1,down_factor=None):
+def init_one_shot(m,num_planes = 1,down_factor=1):
     global A
     try:
         A = torch.zeros(int(Nx*down_factor)*int(Ny*down_factor)*num_planes*m, Nx*Ny*Nz).float().to(device)
@@ -298,9 +298,9 @@ def show_planes(outs, title, N_z=256):  # outs.shape: [Nz, Nx, Ny]
     plt.suptitle(f'{title} ')
     plt.show()
 
+
+
 # Showing specified planes of a 3D Tensor
-
-
 def show_planes_z(outs, title, z_planes):  # outs.shape: [Nz, Nx, Ny]
     plt.figure(figsize=(20, 2))
     for i, z_idx in enumerate(z_planes):
