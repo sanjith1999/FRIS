@@ -65,7 +65,7 @@ def create_spherical_object(radius = 3): # Radius ~ um
     z = torch.linspace((-Nz)//2+1, Nz//2, Nz)
 
     # Create a meshgrid from the points
-    z, x, y = torch.meshgrid(z, x, y)
+    z, x, y = torch.meshgrid(z, x, y, indexing = 'ij')
 
     # Calculate the distance from each point in the grid to the center
     distance = torch.sqrt((x*dx)**2 + (y*dy)**2 + (z*dz)**2)
