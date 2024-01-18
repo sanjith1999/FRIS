@@ -38,11 +38,11 @@ def init_DMD(ep_dx_, ep_dy_, verbose=False):
 
 
 # Initializing DMD Patterns : Extended Model
-def init_DMD_patterns(m,ep_dx__=None,ep_dy__=None):
+def init_DMD_patterns(m,ep_dx__=None,ep_dy__=None, verbose = False):
     global Ht_2D_list
     Ht_2D_list = []
     for _ in range(m):
-        init_DMD(ep_dx_=ep_dx__, ep_dy_=ep_dy__)
+        init_DMD(ep_dx_=ep_dx__, ep_dy_=ep_dy__, verbose=verbose)
         Ht_2D_list.append(ht_2D)
 
 
@@ -63,7 +63,8 @@ def forward_model(X, Ht_2D=None, verbose=0, return_planes=None, down_factor=None
     Y = conv_3D(emPSF_3D, H3).abs()[0]
     det_Y = Y[return_planes, :, :]
     if down_factor is not None:
-        det_Y = nn.functional.interpolate(det_Y.unsqueeze(0).unsqueeze(0), scale_factor=(1,down_factor,down_factor), mode='area').squeeze()
+        scale_factor = (1, down_factor, down_factor) if len(det_Y.shape)==3 else (down_factor, down_factor)
+        det_Y = nn.functional.interpolate(det_Y.unsqueeze(0).unsqueeze(0), scale_factor=scale_factor, mode='area').squeeze()
 
     ####### DETACH IMPORTANT OBJECTS TO VISUALIZE ##########
     # Excitation Pattern Convolved with Coherent PSF : H2
@@ -186,7 +187,7 @@ class psf_model(nn.Module):
         self.Phi = calculate_phi(self.Nx)
         self.A = np.pi / self.lambda_
 
-        self.X, self.Y, self.THETA = torch.meshgrid(self.x, self.y, self.theta)
+        self.X, self.Y, self.THETA = torch.meshgrid(self.x, self.y, self.theta, indexing = 'ij')
 
         V = (2*np.pi / self.lambda_) * \
             torch.sqrt(self.X**2 + self.Y**2).numpy()  # k.r
@@ -285,7 +286,7 @@ def show_psf(PSF_3D):
 
 
 # Showing planes of a 3D Tensor
-def show_planes(outs, title, N_z=256):  # outs.shape: [Nz, Nx, Ny]
+def show_planes(outs, title, N_z=16):  # outs.shape: [Nz, Nx, Ny]
     z_planes = range(0, N_z, max(N_z//8, 1))
     plt.figure(figsize=(20, 2))
     for i, z_idx in enumerate(z_planes):
@@ -322,3 +323,62 @@ def show_image(image, title='', fig_size=(5, 5)):
     plt.yticks([])
     plt.title(title)
     plt.show()
+
+
+# Function to display images in a grid
+def show_images(images, titles=None, cols=4, figsize=(12, 6)):
+    rows = len(images) // cols + (len(images) % cols > 0)
+    fig, axes = plt.subplots(rows, cols, figsize=figsize)
+
+    if titles is None:
+        titles = [f"Pattern: {i+1}" for i in range(len(images))]
+
+    for i, (image, title) in enumerate(zip(images, titles)):
+        ax = axes.flatten()[i]
+        ax.imshow(image)
+        ax.set_title(title)
+        ax.axis('off')
+
+    plt.tight_layout()
+    plt.show()
+
+
+
+def compare_two_vectors(vec1, vec2, tolerance = 1e-6):
+    are_approx_equal = torch.allclose(vec1, vec2, atol=tolerance)
+
+    if are_approx_equal:
+        print("The vectors are approximately the same.")
+    else:
+        print("The vectors are different.")
+
+
+def visualize_vectors(V,cols = 2,  titles=None, fig_size = (12,6), same_fig = True, top_adjust = 2.5):
+    n_vectors = len(V)
+    if titles is None:
+        titles = [f"vector: {i+1}" for i in range(n_vectors)]
+    
+    if same_fig:
+        for i, (vector, title) in enumerate(zip(V, titles)):
+            plt.plot(vector, label = title, alpha=.8)
+            plt.xlabel('Index')
+            plt.ylabel('Value')
+            plt.legend()
+            plt.title('Comparison of Vectors')
+
+    else: 
+        rows = n_vectors // cols + (n_vectors % cols > 0)
+        fig, axes = plt.subplots(rows, cols, figsize=fig_size)
+
+
+        for i, (vector, title) in enumerate(zip(V, titles)):
+            ax = axes.flatten()[i]
+            ax.plot(vector, alpha=.8)
+            ax.set_title(title)
+            ax.set_xlabel("Index")
+            ax.set_ylabel("Value")
+            ax.grid(alpha=.8)
+        plt.subplots_adjust(top=top_adjust)
+    plt.show()
+
+

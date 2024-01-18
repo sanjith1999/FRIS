@@ -448,7 +448,6 @@ num_nz_x = sum(nz_x(:));
 resid =  y-A(x);
 prev_f = 0.5*(resid(:)'*resid(:)) + tau*phi_function(x);
 
-
 % start the clock
 t0 = cputime;
 

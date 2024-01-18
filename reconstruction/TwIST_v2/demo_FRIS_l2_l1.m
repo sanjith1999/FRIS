@@ -7,7 +7,7 @@ function demo_FRIS_l2_l1
 % where A is a generic matrix and ||.||_1 is the l1 norm.
 
 % load the data
-data = load('E:\Aca\FYP\codes\twist\data\neural_cell_m_8_x_16x16x8.mat');
+data = load('E:\Aca\FYP\codes\FRIS _Copy\reconstruction\data\3Dsphere_m16_32x32x5_df0.5_20dB.mat');
 
 % Measurement matrix
 R = data.A;
@@ -92,7 +92,7 @@ fprintf(1,'TwIST   CPU time - %f\n', times_twist(end));
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Decrease tau %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %  regularization parameter 
 
-tau = 0.00002*max(abs(hRt(y)));
+tau = 1e-6*max(abs(hRt(y)));
 % TwIST parameters
 
 % -- TwIST ---------------------------
