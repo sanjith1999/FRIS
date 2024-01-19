@@ -24,12 +24,10 @@ for j = 1:nz
     p1 = zeros(size(fz));
     p2 = zeros(size(fz));
     divp = zeros(size(fz));
-    lastdivp = ones(size(fz));
 
     if length(N) == 2           % TV denoising
         %while norm(divp(:) - lastdivp(:),inf) > Tol
         for i=1:iters
-            lastdivp = divp;
             z = divp - fz*lambda;
             z1 = z(:,ir) - z;
             z2 = z(id,:) - z;
