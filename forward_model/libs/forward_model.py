@@ -1,20 +1,21 @@
 import torch
 import numpy as np
 import scipy.special
-import matplotlib.pyplot as plt
 from torch import nn
-
+from tqdm import tqdm
+import libs.visualizer as vs
 
 # Initializing important parameters
-def init_parameters(NA_, Rindex_, lambda_, dx_, dy_, dz_, Nx_, Ny_, Nz_, verbose=False, device_=None):
-    global Nx, Ny, Nz, dx, dy, dz, exPSF_3D, emPSF_3D, device
+def init_parameters(NA_, Rindex_, lambda_, dx_, dy_, dz_, Nx_, Ny_, Nz_, verbose=False, device_=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
+    global Nx, Ny, Nz, dx, dy, dz, exPSF_3D, emPSF_3D, device, NA
 
     Nx, Ny, Nz = Nx_, Ny_, Nz_
     dx, dy, dz = dx_, dy_, dz_
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = device_
+    NA =NA_
 
     try:
-        psf = psf_model(NA_, Rindex_, lambda_, dx, dy, dz, Nx, Ny, Nz).to(device)
+        psf = psf_model(NA, Rindex_, lambda_, dx, dy, dz, Nx, Ny, Nz).to(device)
         exPSF_3D = psf().detach().permute(0, 3, 1, 2)
         emPSF_3D = (exPSF_3D.abs()**2).sum(dim=0).unsqueeze(dim=0)  # IPSF
         print("Sucessfully Initialized Point Spread Function...!!!")
@@ -31,7 +32,7 @@ def init_DMD(ep_dx_, ep_dy_, verbose=False):
         ht_2D = (torch.randn(Nx//ep_dx + 1,Ny//ep_dy + 1) > 0).float()
         ht_2D = ht_2D.repeat_interleave(ep_dx, dim=0).repeat_interleave(ep_dy, dim=1)[:Nx, :Ny]
         if verbose:
-            show_image(ht_2D, "Excitation Pattern", fig_size=(5, 5))
+            vs.show_image(ht_2D, "Excitation Pattern", fig_size=(5, 5))
 
     except:
         print("DMD Pattern Initialization Failed...!!!")
@@ -90,11 +91,11 @@ def forward_model(X, Ht_2D=None, verbose=0, return_planes=None, down_factor=None
     if verbose > 0:
         if verbose > 1:
             if verbose > 2:
-                show_image(ht_2D, "Excitation Pattern", fig_size=(3, 3))
-                show_planes(coherent_out, title=f'H2', N_z=Nz)
-            show_planes(I, title=f"Object", N_z=Nz)
-            show_planes(R, title=f'Y', N_z=Nz)
-        show_image(det_R, "Detected Image", (3, 3))
+                vs.show_image(ht_2D, "Excitation Pattern", fig_size=(3, 3))
+                vs.show_planes(coherent_out, title=f'H2', N_z=Nz)
+            vs.show_planes(I, title=f"Object", N_z=Nz)
+            vs.show_planes(R, title=f'Y', N_z=Nz)
+        vs.show_image(det_R, "Detected Image", (3, 3))
 
 
     return det_Y
@@ -111,18 +112,23 @@ def extended_forward_model(X, verbose=False, measure_planes=None,down_factor = 1
     return Y
 
 
+
 # Initializng parameters for One Shot Model
-def init_one_shot(m,num_planes = 1,down_factor=1):
+def init_one_shot(m,num_planes = 1,down_factor=1,save_mat = False, save_path = "./data/matrices/"):
     global A
     try:
         A = torch.zeros(int(Nx*down_factor)*int(Ny*down_factor)*num_planes*m, Nx*Ny*Nz).float().to(device)
         I = torch.zeros(1, Nz, Nx, Ny).float().to(device)
-        for i_z in range(Nz):
+        for i_z in tqdm(range(Nz), desc = "Plane Calculations: "):
             for i_x in range(Nx):
                 for i_y in range(Ny):
                     I[0, i_z, i_x, i_y] = 1
                     A[:, i_z*Ny*Nx + i_x*Ny+i_y] = extended_forward_model(I,measure_planes=[(i*Nz)//(num_planes+1) for i in range(1,num_planes+1)],down_factor=down_factor)
                     I[0, i_z, i_x, i_y] = 0
+
+        if save_mat:
+            torch.save(A, save_path+f"A_{NA:.1f}_{dx:.2f}_{Nx}_{dz:.2f}_{Nz}_{m}.pt")               # NA_dx_Nx_dz_Nz_m.pt
+
         print("Matrix A is intialized sucessfully...!!!")
     except:
         print("Failed to Initialize A...!!!")
@@ -242,143 +248,34 @@ class psf_model(nn.Module):
         return PSF_3D
 
 
-# Visualizing PSF
-def show_psf(PSF_3D):
-    _, Nx, Ny, Nz = PSF_3D.shape
+# Forward model of a single measurement
+def dc_forward_model(X, Ht_2D=None, object_plane = 0):
+    global X_masked
+    ht_3D = torch.zeros(1, Nz, Nx, Ny).float().to(device)
+    ht_3D[:, Nz//2] = Ht_2D
+    H1 = conv_3D(exPSF_3D, ht_3D)
+    H2 = (H1.abs()**2).sum(dim=0)
 
-    plt.figure(figsize=(12, 3))
-    plt.subplot(1, 3, 1)
-    plt.imshow(PSF_3D[0, :, :, Nz//2].abs())
-    plt.title('x-axis')
-    plt.colorbar(fraction=0.025)
-
-    plt.subplot(1, 3, 2)
-    plt.imshow(PSF_3D[1, :, :, Nz//2].abs())
-    plt.title('y-axis')
-    plt.colorbar(fraction=0.025)
-
-    plt.subplot(1, 3, 3)
-    plt.imshow(PSF_3D[2, :, :, Nz//2].abs())
-    plt.title('z-axis')
-    plt.colorbar(fraction=0.025)
-
-    plt.suptitle('3D PSF : ABS', y=1.01)
-    plt.show()
-
-    plt.figure(figsize=(12, 3))
-    plt.subplot(1, 3, 1)
-    plt.imshow(PSF_3D[0, :, :, Nz//2].angle())
-    plt.title('x-axis')
-    plt.colorbar(fraction=0.025)
-
-    plt.subplot(1, 3, 2)
-    plt.imshow(PSF_3D[1, :, :, Nz//2].angle())
-    plt.title('y-axis')
-    plt.colorbar(fraction=0.025)
-
-    plt.subplot(1, 3, 3)
-    plt.imshow(PSF_3D[2, :, :, Nz//2].angle())
-    plt.title('z-axis')
-    plt.colorbar(fraction=0.025)
-
-    plt.suptitle('3D PSF : ANGLE', y=1.01)
-    plt.show()
+    X_masked = torch.zeros_like(X)
+    X_masked[0,object_plane, :, :] = X[0, object_plane, :, :]
+    H3 = X_masked * H2
+    Y = conv_3D(emPSF_3D, H3).abs()[0]
+    det_Y = Y[Nz//2, :, :]
+    return det_Y
 
 
-# Showing planes of a 3D Tensor
-def show_planes(outs, title, N_z=16):  # outs.shape: [Nz, Nx, Ny]
-    z_planes = range(0, N_z, max(N_z//8, 1))
-    plt.figure(figsize=(20, 2))
-    for i, z_idx in enumerate(z_planes):
-        plt.subplot(1, len(z_planes), i+1)
-        plt.imshow(outs[z_idx], vmin=outs.min(), vmax=outs.max())
-        plt.axis('off')
-        plt.title(f'z: {z_idx}')
+# Extended forward model
+def dc_extended_forward_model(X, object_plane = 0, verbose = False):
+    Y = torch.tensor([]).to(device)
+    Yi_list = []
+    for i in tqdm(range(len(Ht_2D_list)), desc = f"Plane{object_plane}, Excitation Pattern: "):
+        Ht_2D = Ht_2D_list[i]
+        Yi = dc_forward_model(X, Ht_2D, object_plane=object_plane)
+        if verbose: 
+            Yi_list.append(Yi.detach().cpu())
+        Yi_flatten = Yi.flatten()
+        Y = torch.cat((Y, Yi_flatten), dim=0)
+    if verbose:
+        vs.show_images(Yi_list)
 
-    plt.subplots_adjust(top=0.73)
-    plt.suptitle(f'{title} ')
-    plt.show()
-
-
-
-# Showing specified planes of a 3D Tensor
-def show_planes_z(outs, title, z_planes):  # outs.shape: [Nz, Nx, Ny]
-    plt.figure(figsize=(20, 2))
-    for i, z_idx in enumerate(z_planes):
-        plt.subplot(1, len(z_planes), i+1)
-        plt.imshow(outs[z_idx], vmin=outs.min(), vmax=outs.max())
-        plt.axis('off')
-        plt.title(f'z: {z_idx}')
-
-    plt.subplots_adjust(top=0.73)
-    plt.suptitle(f'{title}')
-    plt.show()
-
-
-# Showing 2D Images
-def show_image(image, title='', fig_size=(5, 5)):
-    plt.figure(figsize=fig_size)
-    plt.imshow(image, vmax=image.max(), vmin=image.min())
-    plt.xticks([])
-    plt.yticks([])
-    plt.title(title)
-    plt.show()
-
-
-# Function to display images in a grid
-def show_images(images, titles=None, cols=4, figsize=(12, 6)):
-    rows = len(images) // cols + (len(images) % cols > 0)
-    fig, axes = plt.subplots(rows, cols, figsize=figsize)
-
-    if titles is None:
-        titles = [f"Pattern: {i+1}" for i in range(len(images))]
-
-    for i, (image, title) in enumerate(zip(images, titles)):
-        ax = axes.flatten()[i]
-        ax.imshow(image)
-        ax.set_title(title)
-        ax.axis('off')
-
-    plt.tight_layout()
-    plt.show()
-
-
-
-def compare_two_vectors(vec1, vec2, tolerance = 1e-6):
-    are_approx_equal = torch.allclose(vec1, vec2, atol=tolerance)
-
-    if are_approx_equal:
-        print("The vectors are approximately the same.")
-    else:
-        print("The vectors are different.")
-
-
-def visualize_vectors(V,cols = 2,  titles=None, fig_size = (12,6), same_fig = True, top_adjust = 2.5):
-    n_vectors = len(V)
-    if titles is None:
-        titles = [f"vector: {i+1}" for i in range(n_vectors)]
-    
-    if same_fig:
-        for i, (vector, title) in enumerate(zip(V, titles)):
-            plt.plot(vector, label = title, alpha=.8)
-            plt.xlabel('Index')
-            plt.ylabel('Value')
-            plt.legend()
-            plt.title('Comparison of Vectors')
-
-    else: 
-        rows = n_vectors // cols + (n_vectors % cols > 0)
-        fig, axes = plt.subplots(rows, cols, figsize=fig_size)
-
-
-        for i, (vector, title) in enumerate(zip(V, titles)):
-            ax = axes.flatten()[i]
-            ax.plot(vector, alpha=.8)
-            ax.set_title(title)
-            ax.set_xlabel("Index")
-            ax.set_ylabel("Value")
-            ax.grid(alpha=.8)
-        plt.subplots_adjust(top=top_adjust)
-    plt.show()
-
-
+    return Y
