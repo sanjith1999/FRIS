@@ -26,7 +26,7 @@ def visualize_X(X, nx, ny, nz, figsize=(15, 15), planes_to_plot=None):
     for i, plane_idx in enumerate(planes_to_plot):
         plane_data = X[plane_idx*nx*ny : (plane_idx+1)*nx*ny, 0].reshape((ny, nx))
         axes[i].imshow(plane_data, cmap='viridis')
-        axes[i].set_title(f'Plane {plane_idx+1}')
+        axes[i].set_title(f'P {plane_idx+1}')
     plt.tight_layout()
     plt.show()
 
@@ -45,7 +45,7 @@ def visualize_y(y, nx, ny, df, m, np, figsize=(15, 15)):
             index = i*np*step + j*step
             plane_data = y[index : index+step].reshape((ny, nx))
             axes[i*np + j].imshow(plane_data, cmap='viridis')
-            axes[i*np + j].set_title(f'Pattern {i + 1}, Plane # {j + 1}')
+            axes[i*np + j].set_title(f'm {i + 1}, P #{j + 1}')
     plt.tight_layout() 
     plt.show()
 
@@ -79,10 +79,10 @@ def comparison_twist(X, xtwist, nx, ny, nz, figsize=(15, 15), planes_to_plot=Non
     for i, plane_idx in enumerate(planes_to_plot):
         plane_X = X[plane_idx*nx*ny : (plane_idx+1)*nx*ny, 0].reshape((ny, nx))
         axes[i].imshow(plane_X, cmap='viridis')
-        axes[i].set_title(f'Original {plane_idx+1}')
+        axes[i].set_title(f'O {plane_idx+1}')
         plane_xtwist = xtwist[plane_idx*nx*ny : (plane_idx+1)*nx*ny, 0].reshape((ny, nx))
         axes[i+num_cols].imshow(plane_xtwist, cmap='viridis')
-        axes[i+num_cols].set_title(f'Reconstructed {plane_idx+1}')
+        axes[i+num_cols].set_title(f'R {plane_idx+1}')
     plt.tight_layout()
     plt.show()
 

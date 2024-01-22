@@ -173,7 +173,8 @@ def TwIST(y, FM, tau, nx, ny, nz, **kwargs):
         grad = utils.AT(resid, FM, nx, ny, nz)
         while for_ever:
             # IST estimate
-            x = utils.tvdenoise2D(xm1 + grad/max_svd, 2/(tau/max_svd), 1, nx, ny, nz)
+            x = utils.soft(xm1 + grad/max_svd, tau/max_svd)
+            # x = utils.tvdenoise2D(xm1 + grad/max_svd, 2/(tau/max_svd), 3, nx, ny, nz)
             if IST_iters >= 2 or TwIST_iters != 0:
                 # set to zero the past when the present is zero
                 # suitable for sparse inducing priors
@@ -276,7 +277,6 @@ def TwIST(y, FM, tau, nx, ny, nz, **kwargs):
     # remove the bias from the l1 penalty, by applying CG to the
     # least-squares problem obtained by omitting the l1 term
     # and fixing the zero coefficients at zero.
-
     if debias:
         if verbose:
             print('\nStarting the debiasing phase...\n')
