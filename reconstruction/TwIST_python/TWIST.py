@@ -10,6 +10,8 @@ def psi_function(X, tau, max_svd, nx, ny, nz, Psi):
         return utils.tvdenoise2D(X, 2/(tau/max_svd), 3, nx, ny, nz)
     elif Psi == 'SOFT':
         return utils.soft(X, tau/max_svd)
+    elif Psi == 'SOFT_DWT':
+        return utils.soft_DWT(X, tau/max_svd, nx, ny, nz)
     else:
         raise ValueError("Invalid value for Psi")
     
@@ -20,6 +22,8 @@ def phi_function(X, nx, ny, nz, Phi):
         return np.sum(np.abs(X))
     elif Phi == 'L1_FD':
         return utils.L1Norm_FD(X, nx, ny, nz)
+    elif Phi == 'L1_DWT':
+        return utils.L1Norm_DWT(X, nx, ny, nz)
     else:
         raise ValueError("Invalid value for Phi")
 
@@ -152,6 +156,11 @@ def TwIST(y, FM, tau, nx, ny, nz,
         grad = utils.AT(resid, FM, nx, ny, nz)
         while True:
             # IST estimate
+            # print(xm1.shape)
+            # print(grad.shape)
+            # print((grad/max_svd).shape)
+            # print(xm1 + grad/max_svd)
+            # print('')
             x = psi_function(xm1+grad/max_svd, tau, max_svd, nx, ny, nz, Psi)
             if IST_iters >= 2 or TwIST_iters != 0:
                 # set to zero the past when the present is zero
@@ -235,7 +244,7 @@ def TwIST(y, FM, tau, nx, ny, nz,
         # print out the various stopping criteria
         if verbose:
             if plot_ISNR:
-                print(f"Iteration = {iter}, ISNR = {10 * np.log10(np.sum((y - true)**2) / np.sum((x - true)**2))}, "
+                print(f"Iteration = {iter}, ISNR = {10 * np.log10(np.sum((y - true_x)**2) / np.sum((x - true_x)**2))}, "
                       f"objective = {f}, nz = {num_nz_x}, criterion = {criterion / tolA}")
             else:
                 print(f"Iteration = {iter}, objective = {f}, nz = {num_nz_x}, criterion = {criterion / tolA}")

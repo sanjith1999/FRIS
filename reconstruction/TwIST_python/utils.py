@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.signal import convolve2d
 from numpy.fft import fftn
+import pywt
 
 def A(X, FM, nx, ny, nz):
     return FM@np.reshape(X, (nz*ny*nx, 1))
@@ -55,14 +56,41 @@ def TVnorm2D(X, nx, ny, nz):
         y += np.sum(np.sqrt(diff_h**2 + diff_v**2))
     return y
 
-def L1Norm_FD(X, nx, ny, nz):
-    X_3D = X.reshape((nz, ny, nx))
-    X_fourier = fftn(X_3D)
-    l1_norm_fourier = np.sum(np.abs(X_fourier))
-    return l1_norm_fourier
+
+def L1Norm_DWT(X, nx, ny, nz):
+    X = X.reshape((nz, ny, nx))
+    coeffs = pywt.wavedecn(X, 'db4', level=1)
+    # Access the wavelet coefficients (excluding approximation coefficients)
+    coeffs = coeffs[1:]
+    flattened_coeffs = np.concatenate([np.array(list(c.values())).flatten() for c in coeffs])
+    l1_norm = np.linalg.norm(flattened_coeffs, ord=1)
+    return l1_norm
+
+def soft_DWT(X, T, nx, ny, nz):
+    X = X.reshape((nz, ny, nx))
+
+    if nz == 1:
+        axes = (1,2)
+    else:
+        axes = (0,1,2)
+
+    coeffs = pywt.dwtn(X, 'db4', mode='symmetric', axes=axes)
+
+    def soft_thresholding(v, T):
+        return np.array(np.sign(v)*np.maximum(np.abs(v) - T, 0)) 
+    
+    thresholded_coeffs = {k: soft_thresholding(v, T) for k,v in coeffs.items()}
+    if nz == 1:
+        thresholded_coeffs['aa'] = coeffs['aa']
+    else:
+        thresholded_coeffs['aaa'] = coeffs['aaa']
+    reconstructed_image = pywt.idwtn(thresholded_coeffs, 'db4', mode='symmetric', axes=axes)
+    return reconstructed_image.reshape(nx*ny*nz, 1)
 
 def soft(x, T):
     y = np.maximum(np.abs(x) - T, 0)
     y = y/(y + T)*x
     return y
+
+
 
