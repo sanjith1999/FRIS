@@ -1,36 +1,59 @@
 import utils
 import numpy as np
-from scipy.sparse.linalg import LinearOperator, cg
 import time
 
+def psi_function(X, tau, max_svd, nx, ny, nz, Psi):
+    if tau == 0:
+        return X
 
-def TwIST(y, FM, tau, nx, ny, nz, **kwargs):
-    lam1 = 1e-4
-    alpha = 0
-    beta = 0
-    stop_criterion = 1
-    tolA = 0.01
-    debias = 0
-    maxiter = 1000
-    maxiter_debias = 200
-    miniter = 5
-    miniter_debias = 5
-    init = 0
-    enforceMonotone = 1
-    compute_mse = 0
-    plot_ISNR = 0
-    verbose = 1
-    alpha = 0
-    beta = 0
-    sparse = 0
-    tolD = 0.001
-    phi_l1 = 0
-    psi_ok = 0
-    lam1 = 1e-4
-    lamN = 1
+    if Psi == 'TV':
+        return utils.tvdenoise2D(X, 2/(tau/max_svd), 3, nx, ny, nz)
+    elif Psi == 'SOFT':
+        return utils.soft(X, tau/max_svd)
+    else:
+        raise ValueError("Invalid value for Psi")
+    
+def phi_function(X, nx, ny, nz, Phi):
+    if Phi == 'TV':
+        return utils.TVnorm2D(X, nx, ny, nz)
+    elif Phi == 'L1':
+        return np.sum(np.abs(X))
+    elif Phi == 'L1_FD':
+        return utils.L1Norm_FD(X, nx, ny, nz)
+    else:
+        raise ValueError("Invalid value for Phi")
 
-    # constants and internal variables
-    for_ever = 1
+
+def TwIST(y, FM, tau, nx, ny, nz,
+        Psi = 'SOFT',
+        Phi = 'L1',
+        lam1 = 1e-4, 
+        alpha = 0,
+        beta = 0,
+        stop_criterion = 1,
+        tolA = 0.01,
+        debias = 0,
+        maxiter = 1000,
+        maxiter_debias = 200,
+        miniter = 5,
+        miniter_debias = 5,
+        init = 0,
+        init_x = None,
+        enforceMonotone = 1,
+        sparse = 0,
+        true_x = None,
+        compute_mse = 0,
+        plot_ISNR = 0,
+        verbose = 1,
+        tolD = 0.001,
+        lamN = 1):
+
+    if true_x is None:
+        compute_mse = 0
+    else:
+        compute_mse = 1
+
+
     # maj_max_sv: majorizer for the maximum singular value of operator A
     max_svd = 1
 
@@ -39,51 +62,6 @@ def TwIST(y, FM, tau, nx, ny, nz, **kwargs):
     x_debias = np.array([])
     mses = np.array([])
 
-    # Read the optional parameters
-    for key, value in kwargs.items():
-        if key.upper() == 'LAMBDA':
-            lam1 = value
-        elif key.upper() == 'ALPHA':
-            alpha = value
-        elif key.upper() == 'BETA':
-            beta = value
-        elif key.upper() == 'STOPCRITERION':
-            stop_criterion = value
-        elif key.upper() == 'TOLERANCEA':
-            tolA = value
-        elif key.upper() == 'TOLERANCED':
-            tolD = value
-        elif key.upper() == 'DEBIAS':
-            debias = value
-        elif key.upper() == 'MAXITERA':
-            maxiter = value
-        elif key.upper() == 'MAXIRERD':
-            maxiter_debias = value
-        elif key.upper() == 'MINITERA':
-            miniter = value
-        elif key.upper() == 'MINITERD':
-            miniter_debias = value
-        elif key.upper() == 'INITIALIZATION':
-            if np.prod(np.array(value).shape) > 1:
-                init = 33333  # some flag to be used below
-                x = value
-            else:
-                init = value
-        elif key.upper() == 'MONOTONE':
-            enforceMonotone = value
-        elif key.upper() == 'SPARSE':
-            sparse = value
-        elif key.upper() == 'TRUE_X':
-            compute_mse = 1
-            true = value
-            if np.prod(np.array(true).shape) == np.prod(np.array(y).shape):
-                plot_ISNR = 1
-        elif key.upper() == 'AT':
-            AT = value
-        elif key.upper() == 'VERBOSE':
-            verbose = value
-        else:
-            raise ValueError(f"Unrecognized option: {key}")
 
     # twist parameters
     rho0 = (1 - lam1/lamN)/(1 + lam1/lamN)
@@ -101,40 +79,41 @@ def TwIST(y, FM, tau, nx, ny, nz, **kwargs):
         x = utils.AT(np.zeros_like(y), FM, nx, ny, nz)
     elif init == 1:
         # initialize randomly, using AT to find the size of x
-        x = np.random.randn(utils.AT(np.zeros_like(y)).shape, FM, nx, ny, nz)
+        x = np.random.randn(*utils.AT(np.zeros_like(y), FM, nx, ny, nz).shape)
     elif init == 2:
         # initialize x0 = A'*y
         x = Aty
-    elif init == 33333:
+    elif init == 3:
         # initial x was given as a function argument; just check size
-        if np.shape(utils.A(x, FM, nx, ny, nz)) != np.shape(y):
+        if np.shape(utils.A(init_x, FM, nx, ny, nz)) != np.shape(y):
             raise ValueError("Size of initial x is not compatible with A")
+        else:
+            x = init_x
     else:
         raise ValueError("Unknown 'Initialization' option")
 
     # now check if tau is an array; if it is, it has to
     # have the same size as x
-    if np.prod(np.array(tau).shape) > 1:
+    if isinstance(tau, np.ndarray):
         try:
             dummy = x*tau
         except:
             raise ValueError("Parameter tau has wrong dimensions; it should be scalar or size(x)")
 
     # if the true x was given, check its size
-    if compute_mse and np.shape(true) != np.shape(x):
+    if compute_mse and np.shape(true_x) != np.shape(x):
         raise ValueError("Initial x has incompatible size")
 
     # if tau is large enough, in the case of phi = l1, thus psi = soft,
     # the optimal solution is the zero vector
-    # if phi_l1:
-    #     max_tau = np.max(np.abs(Aty))
-    #     if tau >= max_tau and psi_ok == 0:
-    #         x = np.zeros_like(Aty)
-    #         objective = [0.5 * np.dot(y.flatten(), y.flatten())]
-    #         times = [0]
-    #         if compute_mse:
-    #             mses = np.array([np.sum(true.flatten()**2)])
-    #         return x, x_debias, objective, times, debias_start, mses, max_svd
+    if Phi == 'L1' and Psi == 'SOFT':
+        max_tau = np.max(np.abs(Aty))
+        x = np.zeros_like(Aty)
+        objective = [0.5*np.dot(y.flatten(), y.flatten())]
+        times = [0]
+        if compute_mse:
+            mses = np.array([np.sum(true_x.flatten()**2)])
+        return x, x_debias, objective, times, debias_start, mses, max_svd
 
     # define the indicator vector or matrix of nonzeros in x
     nz_x = (x != 0.0)
@@ -142,7 +121,7 @@ def TwIST(y, FM, tau, nx, ny, nz, **kwargs):
 
     # Compute and store the initial value of the objective function
     resid = y - utils.A(x, FM, nx, ny, nz)
-    prev_f = 0.5*np.dot(resid.flatten(), resid.flatten()) + tau*utils.TVnorm2D(x, nx, ny, nz)
+    prev_f = 0.5*np.dot(resid.flatten(), resid.flatten()) + tau*phi_function(x, nx, ny, nz, Phi)
 
     # start the clock
     t0 = time.process_time()
@@ -151,7 +130,7 @@ def TwIST(y, FM, tau, nx, ny, nz, **kwargs):
     objective = [prev_f]
 
     if compute_mse:
-        mses = np.array([np.sum((x - true)**2)])
+        mses = np.array([np.sum((x - true_x)**2)])
 
     cont_outer = 1
     iter = 1
@@ -171,10 +150,9 @@ def TwIST(y, FM, tau, nx, ny, nz, **kwargs):
     while cont_outer:
         # gradient
         grad = utils.AT(resid, FM, nx, ny, nz)
-        while for_ever:
+        while True:
             # IST estimate
-            x = utils.soft(xm1 + grad/max_svd, tau/max_svd)
-            # x = utils.tvdenoise2D(xm1 + grad/max_svd, 2/(tau/max_svd), 3, nx, ny, nz)
+            x = psi_function(xm1+grad/max_svd, tau, max_svd, nx, ny, nz, Psi)
             if IST_iters >= 2 or TwIST_iters != 0:
                 # set to zero the past when the present is zero
                 # suitable for sparse inducing priors
@@ -186,7 +164,7 @@ def TwIST(y, FM, tau, nx, ny, nz, **kwargs):
                 xm2 = (alpha - beta)*xm1 + (1 - alpha)*xm2 + beta*x
                 # compute residual
                 resid = y - utils.A(xm2, FM, nx, ny, nz)
-                f = 0.5*np.dot(resid.flatten(), resid.flatten()) + tau*utils.TVnorm2D(x, nx, ny, nz)
+                f = 0.5*np.dot(resid.flatten(), resid.flatten()) + tau*phi_function(x, nx, ny, nz, Phi)
                 if f > prev_f and enforceMonotone:
                     TwIST_iters = 0  # do an IST iteration if monotonicity fails
                 else:
@@ -198,7 +176,7 @@ def TwIST(y, FM, tau, nx, ny, nz, **kwargs):
                     break  # break loop while
             else:
                 resid = y - utils.A(x, FM, nx, ny, nz)
-                f = 0.5*np.dot(resid.flatten(), resid.flatten()) + tau*utils.TVnorm2D(x, nx, ny, nz)
+                f = 0.5*np.dot(resid.flatten(), resid.flatten()) + tau*phi_function(x, nx, ny, nz, Phi)
                 if f > prev_f:
                     # if monotonicity fails here is because
                     # max eig (A'A) > 1. Thus, we increase our guess
@@ -251,7 +229,7 @@ def TwIST(y, FM, tau, nx, ny, nz, **kwargs):
         times.append(time.process_time() - t0)
 
         if compute_mse:
-            err = true - x
+            err = true_x - x
             mses = np.append(mses, np.dot(err.flatten(), err.flatten()))
 
         # print out the various stopping criteria
@@ -291,7 +269,7 @@ def TwIST(y, FM, tau, nx, ny, nz, **kwargs):
         resid = resid - y
         resid_prev = np.finfo(float).eps*np.ones_like(resid)
 
-        rvec = AT(resid)
+        rvec = utils.AT(resid, FM, nx, ny, nz)
 
         # Mask out the zeros
         rvec = rvec*zeroind
@@ -307,7 +285,7 @@ def TwIST(y, FM, tau, nx, ny, nz, **kwargs):
         while cont_debias_cg:
             # Calculate A*p = Wt * Rt * R * W * pvec
             RWpvec = utils.A(pvec, FM, nx, ny, nz)
-            Apvec = AT(RWpvec)
+            Apvec = utils.AT(RWpvec, FM, nx, ny, nz)
 
             # Mask out the zero terms
             Apvec = Apvec*zeroind
@@ -328,11 +306,11 @@ def TwIST(y, FM, tau, nx, ny, nz, **kwargs):
 
             iter = iter + 1
 
-            objective[iter] = 0.5*np.dot(resid.flatten(), resid.flatten()) + tau * utils.TVnorm2D(x_debias.flatten(), nx, ny, nz)
+            objective[iter] = 0.5*np.dot(resid.flatten(), resid.flatten()) + tau*phi_function(x_debias.flatten(), nx, ny, nz, Phi)
             times[iter] = time.process_time() - t0
 
             if compute_mse:
-                err = true - x_debias
+                err = true_x - x_debias
                 mses[iter] = np.dot(err.flatten(), err.flatten())
 
             # In the debiasing CG phase, always use convergence criterion
@@ -353,7 +331,7 @@ def TwIST(y, FM, tau, nx, ny, nz, **kwargs):
             print(f'CPU time so far = {times[iter]:.3e}\n')
 
     if compute_mse:
-        mses = mses/len(true.flatten())
+        mses = mses/len(true_x.flatten())
 
     return x, x_debias, objective, times, debias_start, mses, max_svd
 

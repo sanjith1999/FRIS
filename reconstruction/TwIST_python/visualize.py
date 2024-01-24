@@ -67,7 +67,7 @@ def obj_mse_twist(obj_twist, times_twist, mse_twist, figsize=(15, 15)):
     print(f'TwIST CPU time: {times_twist[-1]}')
     print(f'MSE Loss: {mse_twist[-1]:.4e}')
 
-def comparison_twist(X, xtwist, nx, ny, nz, figsize=(15, 15), planes_to_plot=None):
+def comparison2(X, xhat, nx, ny, nz, figsize=(15, 15), planes_to_plot=None):
     if planes_to_plot is None:
         planes_to_plot = range(nz)
     num_subplots = len(planes_to_plot)*2
@@ -79,10 +79,35 @@ def comparison_twist(X, xtwist, nx, ny, nz, figsize=(15, 15), planes_to_plot=Non
     for i, plane_idx in enumerate(planes_to_plot):
         plane_X = X[plane_idx*nx*ny : (plane_idx+1)*nx*ny, 0].reshape((ny, nx))
         axes[i].imshow(plane_X, cmap='viridis')
-        axes[i].set_title(f'O {plane_idx+1}')
-        plane_xtwist = xtwist[plane_idx*nx*ny : (plane_idx+1)*nx*ny, 0].reshape((ny, nx))
+        axes[i].set_title(f'P {plane_idx+1}')
+
+        plane_xtwist = xhat[plane_idx*nx*ny : (plane_idx+1)*nx*ny, 0].reshape((ny, nx))
         axes[i+num_cols].imshow(plane_xtwist, cmap='viridis')
-        axes[i+num_cols].set_title(f'R {plane_idx+1}')
+
+    plt.tight_layout()
+    plt.show()
+
+
+def comparison3(xhat1, X, xhat2, nx, ny, nz, figsize=(15, 15), planes_to_plot=None):
+    if planes_to_plot is None:
+        planes_to_plot = range(nz)
+    num_subplots = len(planes_to_plot)*3
+
+    num_cols = len(planes_to_plot) 
+    num_rows = 3
+    fig, axes = plt.subplots(num_rows, num_cols, figsize=figsize)
+    axes = axes.flatten()
+    for i, plane_idx in enumerate(planes_to_plot):
+        plane_xhat1 = xhat1[plane_idx*nx*ny : (plane_idx+1)*nx*ny, 0].reshape((ny, nx))
+        axes[i].imshow(plane_xhat1, cmap='viridis')
+        axes[i].set_title(f'P {plane_idx+1}')
+
+        plane_X = X[plane_idx*nx*ny : (plane_idx+1)*nx*ny, 0].reshape((ny, nx))
+        axes[i+num_cols].imshow(plane_X, cmap='viridis')
+
+        plane_xhat2 = xhat2[plane_idx*nx*ny : (plane_idx+1)*nx*ny, 0].reshape((ny, nx))
+        axes[i+2*num_cols].imshow(plane_xhat2, cmap='viridis')
+
     plt.tight_layout()
     plt.show()
 
