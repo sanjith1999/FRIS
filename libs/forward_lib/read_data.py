@@ -8,6 +8,7 @@ import random
 from libs.forward_lib.linearized_process import LinearizedModel
 from libs.forward_lib.physical_model import PhysicalModel
 from libs.forward_lib.visualizer import show_planes_z
+from scipy.spatial.transform import Rotation
 
 class ReadData:
     """ 
@@ -22,7 +23,7 @@ class ReadData:
     def __init__(self, nx, ny, nz):
         self.raw_data_type = "Nothing"   
         self.nx, self.ny, self.nz = nx, ny, nz
-        self.X = torch.zeros(1, nx, ny, nz).to(self.device)
+        self.X = torch.zeros(1, nz, ny, nx).to(self.device)
 
     def __str__(self):
         desc  = ""
@@ -41,6 +42,8 @@ class ReadData:
                 self.load_fluorescense_bead()
             elif object_type == "3D_sphere":
                 self.create_spherical_object(radius = radius)
+            elif object_type == "synthetic_bead":
+                self.create_synthetic_bead()
             elif object_type == "neural_cell":
                 self.load_cell_data(True)
             elif object_type == "blood_cell":
@@ -93,6 +96,68 @@ class ReadData:
         inside_sphere = inside_sphere.unsqueeze(0)
         self.X[inside_sphere] = 1
         self.X[~inside_sphere] = 0
+
+    def create_synthetic_bead(self): 
+        """ 
+        Method: assistant to create synthetic bead object
+        """
+        def generate_rotation_matrix(alpha, beta, gamma):
+            R_x = Rotation.from_euler('x', alpha)
+            R_y = Rotation.from_euler('y', beta)
+            R_z = Rotation.from_euler('z', gamma)
+            return R_z.as_matrix() @ R_y.as_matrix() @ R_x.as_matrix()
+        
+        def generate_volume_with_sphere(nx, ny, nz, dx, dy, dz, r, center_x, center_y, center_z):
+            Z, Y, X = np.mgrid[0:nz, 0:ny, 0:nx]
+            distances = np.sqrt(((X - center_x)*dx)**2 +
+                                ((Y - center_y)*dy)**2 +
+                                ((Z - center_z)*dz)**2)
+            normalized_distances = 1 - distances/r
+            volume = np.where(distances <= r, normalized_distances, 0)
+            return volume
+        
+        def generate_volume_with_ellipsoid(nx, ny, nz, dx, dy, dz, rx, ry, rz, center_x, center_y, center_z):
+            volume = np.zeros((nz, ny, nx))
+            alpha = np.random.uniform(0, np.pi/4) #around z
+            beta = np.random.uniform(0, np.pi/4) #around y
+            gamma = np.random.uniform(0, np.pi/4) #around x
+            rotation_matrix = generate_rotation_matrix(alpha, beta, gamma)
+            for z in range(nz):
+                for y in range(ny):
+                    for x in range(nx):
+                        point = np.array([z, y, x]) - np.array([center_z, center_y, center_x])
+                        rotated_point = (rotation_matrix @ point) * (np.array([dz, dy, dx])) / (np.array([rz, ry, rx]))
+                        distance = np.sqrt(np.sum(rotated_point**2))
+                        if distance <= 1:
+                            volume[z, y, x] = 1 - distance
+            return volume
+        
+        volume = np.zeros((self.nz, self.ny, self.nx))
+        num_spheres = np.random.randint(2, 4)
+        num_ellipsoids = np.random.randint(2, 4)
+        r_range = (self.nx*self.dx/9, self.nx*self.dx/3)
+        for _ in range(num_spheres):
+            center_x = np.random.randint(0, self.nx)
+            center_y = np.random.randint(0, self.ny)
+            center_z = np.random.randint(0, self.nz)
+            r = np.random.uniform(r_range[0], r_range[1])
+            sphere_volume = generate_volume_with_sphere(self.nx, self.ny, self.nz, 
+                                                        self.dx, self.dy, self.dz, 
+                                                        r, center_x, center_y, center_z)
+            volume = np.maximum(volume, sphere_volume)
+        for _ in range(num_ellipsoids):
+            center_x = np.random.randint(0, self.nx)
+            center_y = np.random.randint(0, self.ny)
+            center_z = np.random.randint(0, self.nz)
+            rx = np.random.uniform(r_range[0], r_range[1])
+            ry = np.random.uniform(r_range[0], r_range[1])
+            rz = np.random.uniform(r_range[0], r_range[1])
+            sphere_volume = generate_volume_with_ellipsoid(self.nx, self.ny, self.nz, 
+                                                           self.dx, self.dy, self.dz, 
+                                                           rx, ry, rz, center_x, center_y, center_z)
+            volume = np.maximum(volume, sphere_volume)
+        
+        self.X = torch.from_numpy(volume).unsqueeze(0)
 
 
     def load_cell_data(self, is_neural=True):
