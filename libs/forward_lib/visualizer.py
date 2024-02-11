@@ -60,6 +60,25 @@ def show_images(images, titles=None, cols=4, figsize=(12, 6)):
     plt.show()
 
 
+# Function to visualize 3D object
+def vis_3d(image, title = "3D Object", elev_ang = 10, azim_ang = 40, fig_size = (4,4)):
+    image = (image - image.min())/(image.max()-image.min())
+    fig = plt.figure(figsize=fig_size)
+    ax = fig.add_subplot(111, projection='3d')
+    z, x, y = image.shape
+    colors = plt.cm.jet(image)
+
+    ax.voxels(image, facecolors=colors, alpha= .5)
+
+    ax.set_xlabel('Z'), ax.set_ylabel('X'), ax.set_zlabel('Y')
+    ax.set_xlim(0, z), ax.set_ylim(0, x), ax.set_zlim(0, y)
+    ax.set_title(title)
+    ax.set_xticks([]), ax.set_yticks([]), ax.set_zticks([])
+    ax.view_init(elev=elev_ang, azim=azim_ang)
+    ax.set_aspect('equal')
+    plt.show()
+
+
 # Checking all the values of two vectors are equal with a specified tolerance
 def compare_two_vectors(vec1, vec2, tolerance = 1e-6):
     are_approx_equal = torch.allclose(vec1, vec2, atol=tolerance)

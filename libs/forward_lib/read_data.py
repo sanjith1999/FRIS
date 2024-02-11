@@ -26,7 +26,8 @@ class ReadData:
         self.X = torch.zeros(1, nz, ny, nx).to(self.device)
 
     def __str__(self):
-        desc  = ""
+        desc  = "Read Object Parameters\n"
+        desc += "--------------------------\n"
         desc += f"Spatial Dimension\t: {self.nx}×{self.ny}×{self.nz}\n"
         desc += f"Reduced Dimension\t: {self.nx//self.v_nx}×{self.ny//self.v_ny}×{self.nz//self.v_nz}\n"
         desc += f"Raw Data Type\t\t: {self.raw_data_type}\n"
