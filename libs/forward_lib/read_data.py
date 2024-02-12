@@ -5,10 +5,11 @@ from PIL import Image
 import numpy as np
 import h5py
 import random
+from scipy.spatial.transform import Rotation
 from libs.forward_lib.linearized_process import LinearizedModel
 from libs.forward_lib.physical_model import PhysicalModel
 from libs.forward_lib.visualizer import show_planes_z
-from scipy.spatial.transform import Rotation
+
 
 class ReadData:
     """ 
