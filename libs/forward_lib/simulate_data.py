@@ -1,8 +1,11 @@
 import torchvision
 import torch
 from random import randint
+import numpy as np
+from scipy.spatial.transform import Rotation
 import libs.forward_lib.visualizer as vs
 from libs.forward_lib.linearized_process import LinearizedModel
+from libs.forward_lib.physical_model import PhysicalModel
 # import torch.nn.functional as F
 # padding = (mz//2, mz//2, mx//2, mx//2, my//2, my//2)
 # F.pad(tensor, padding, "constant", value=0)
@@ -75,4 +78,82 @@ class MnistSimulator:
     def visualize_object(self, ele_ang=10, azim_ang = 40):
         vs.vis_3d(self.X.detach().cpu(), elev_ang=ele_ang, azim_ang=azim_ang)
         
+
+class SyntheticBeadSimulator:
+    device = LinearizedModel.device
+    dx, dy, dz = PhysicalModel.dx, PhysicalModel.dy, PhysicalModel.dz
+
+    def __init__(self, nx, ny, nz):
+        self.nx, self.ny, self.nz = nx, ny, nz
+        self.X = torch.zeros(nz, ny, nx).to(self.device)
+        self.n_spheres = np.random.randint(1, 4)
+        self.n_ellipsoids = np.random.randint(1, 4)
+        self.generate_volume()
+
+    def __str__(self):
+        desc  = ""
+        desc += f"Synthetic bead Simulator\n"
+        desc += f"--------------------------------------------\n"
+        desc += f"Spatial Dimension\t\t: {self.nx}×{self.ny}×{self.nz}\n"
+        desc += f"Number of spheres \t\t: {self.n_spheres}\n"
+        desc += f"Number of ellipsoids \t\t: {self.n_ellipsoids}\n"
+        return desc
+
+    def generate_rotation_matrix(self, alpha, beta, gamma):
+        R_x = Rotation.from_euler('x', alpha)
+        R_y = Rotation.from_euler('y', beta)
+        R_z = Rotation.from_euler('z', gamma)
+        return R_z.as_matrix() @ R_y.as_matrix() @ R_x.as_matrix()
+        
+    def generate_volume_with_sphere(self, r, center_x, center_y, center_z):
+        Z, Y, X = np.mgrid[0:self.nz, 0:self.ny, 0:self.nx]
+        distances = np.sqrt(((X - center_x)*self.dx)**2 +
+                            ((Y - center_y)*self.dy)**2 +
+                            ((Z - center_z)*self.dz)**2)
+        normalized_distances = 1 - distances/r
+        volume = np.where(distances <= r, normalized_distances, 0)
+        return volume
+        
+    def generate_volume_with_ellipsoid(self, rx, ry, rz, center_x, center_y, center_z):
+        volume = np.zeros((self.nz, self.ny, self.nx))
+        alpha = np.random.uniform(0, np.pi/4) #around z
+        beta = np.random.uniform(0, np.pi/4) #around y
+        gamma = np.random.uniform(0, np.pi/4) #around x
+        rotation_matrix = self.generate_rotation_matrix(alpha, beta, gamma)
+        for z in range(self.nz):
+            for y in range(self.ny):
+                for x in range(self.nx):
+                    point = np.array([z, y, x]) - np.array([center_z, center_y, center_x])
+                    rotated_point = (rotation_matrix @ point) * (np.array([self.dz, self.dy, self.dx])) / (np.array([rz, ry, rx]))
+                    distance = np.sqrt(np.sum(rotated_point**2))
+                    if distance <= 1:
+                        volume[z, y, x] = 1 - distance
+        return volume
     
+    def generate_volume(self):
+        volume = np.zeros((self.nz, self.ny, self.nx))
+        r_range = (self.nx*self.dx/9, self.nx*self.dx/3)
+        for _ in range(self.n_spheres):
+            center_x = np.random.randint(0, self.nx)
+            center_y = np.random.randint(0, self.ny)
+            center_z = np.random.randint(0, self.nz)
+            r = np.random.uniform(r_range[0], r_range[1])
+            sphere_volume = self.generate_volume_with_sphere(r, center_x, center_y, center_z)
+            volume = np.maximum(volume, sphere_volume)
+        for _ in range(self.n_ellipsoids):
+            center_x = np.random.randint(0, self.nx)
+            center_y = np.random.randint(0, self.ny)
+            center_z = np.random.randint(0, self.nz)
+            rx = np.random.uniform(r_range[0], r_range[1])
+            ry = np.random.uniform(r_range[0], r_range[1])
+            rz = np.random.uniform(r_range[0], r_range[1])
+            sphere_volume = self.generate_volume_with_ellipsoid(rx, ry, rz, center_x, center_y, center_z)
+            volume = np.maximum(volume, sphere_volume)
+        self.X = torch.from_numpy(volume)
+
+    def visualize_object3D(self, ele_ang=10, azim_ang = 40):
+        vs.vis_3d(self.X.detach().cpu(), elev_ang=ele_ang, azim_ang=azim_ang)
+
+    def visualize_object2D(self, n_planes=8):
+        z_planes = [itz*(self.nz//n_planes) for itz in range(n_planes)]
+        vs.show_planes_z(self.X.detach().cpu(), "plane-by-plane", z_planes=z_planes)

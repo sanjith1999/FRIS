@@ -75,7 +75,7 @@ def vis_3d(image, title = "3D Object", elev_ang = 10, azim_ang = 40, fig_size = 
     ax.set_title(title)
     ax.set_xticks([]), ax.set_yticks([]), ax.set_zticks([])
     ax.view_init(elev=elev_ang, azim=azim_ang)
-    ax.set_aspect('equal')
+    ax.set_box_aspect([z, y, x])
     plt.show()
 
 
