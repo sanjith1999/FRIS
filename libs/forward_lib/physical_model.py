@@ -140,7 +140,7 @@ class dmd_patterns:
         ht_2D = ht_2D.repeat_interleave(self.ep_dx, dim=0).repeat_interleave(self.ep_dy, dim=1)[:self.nx, :self.ny]
         return ht_2D
 
-    def initialize_patterns(self, n_patterns):
+    def initialize_patterns(self, n_patterns = 1):
         """
         Method: form a list of patterns that contain m random initializations
         """
