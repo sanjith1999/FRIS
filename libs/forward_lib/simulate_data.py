@@ -6,9 +6,6 @@ from scipy.spatial.transform import Rotation
 import libs.forward_lib.visualizer as vs
 from libs.forward_lib.linearized_process import LinearizedModel
 from libs.forward_lib.physical_model import PhysicalModel
-# import torch.nn.functional as F
-# padding = (mz//2, mz//2, mx//2, mx//2, my//2, my//2)
-# F.pad(tensor, padding, "constant", value=0)
 
 
 

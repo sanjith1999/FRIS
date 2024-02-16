@@ -3,6 +3,7 @@ from tqdm import tqdm
 import numpy as np
 from libs.forward_lib.physical_model import PhysicalModel
 from libs.forward_lib.visualizer import show_image
+import pandas as pd
 
 class LinearizedModel:
     """ 
@@ -12,7 +13,7 @@ class LinearizedModel:
     # Class Variables
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     dx, dy, dz = PhysicalModel.dx, PhysicalModel.dy, PhysicalModel.dz
-    v_dx, v_dy, v_dz = .1, .1, .1                                               #um
+    v_dx, v_dy, v_dz = .32, .32, .32                                 #um
     v_nx, v_ny, v_nz = int(v_dx/dx), int(v_dy/dy), int(v_dz/dz)
 
     def __init__(self, nx, ny, nz,n_patterns ,dd_factor = 1, n_planes=1, init_call = False):
@@ -36,7 +37,7 @@ class LinearizedModel:
         desc += f"DMD Patterns \t\t\t: {self.n_patterns}\n"
         desc += f"Measurement Plane\t\t: {self.n_planes}\n"
         desc += f"Detector Pool size \t\t: {self.dd_factor}×{self.dd_factor}\n"
-        desc += f"Computational Device \t\t: {self.device}"
+        desc += f"Computational Device \t\t: {self.device}\n\n"
         return desc
     
 
@@ -92,14 +93,11 @@ class LinearizedModel:
 
         return tr_A
     
-    def save_original_matrix(self,it = 0, original_ = True):
+    def save_matrix(self,it = 100, original_ = False):
         """ 
         Method: function to save matrix A reduced/original
         """
-        if original_:
-            path = f"./data/matrices/original/A_{it}.pt" 
-        else:
-            path = f"./data/matrices/reduced/A_{it}.pt" 
+        path = f"./data/matrices/original/A_{it}.pt" if original_ else f"./data/matrices/reduced/A_{it}.pt" 
         data_to_save = {
             "NA"            :   PhysicalModel.NA,
             "voxel_size"    :   [self.dx, self.dy, self.dz],
@@ -107,11 +105,23 @@ class LinearizedModel:
             "p_dimensions"  :   [PhysicalModel.ep_dx, PhysicalModel.ep_dy],
             "c_patterns"    :   self.n_patterns,
             "c_planes"      :   self.n_planes,
-            "down_factor"   :   self.dd_factor,
-            "matrix"        :   self.A
+            "down_factor"   :   self.dd_factor
         }
+        data_to_save['matrix'] = self.A if original_ else self.A_r
         torch.save(data_to_save, path)
+        self.log_matrix(it, original_)
 
+    def log_matrix(self, it = 100, original_ = False):
+        logpath =  f"./data/matrices/log/A_original.csv" if original_ else  f"./data/matrices/log/A_reduced.csv"  
+        data_to_save = {
+            "it": it, "NA"   : PhysicalModel.NA, "dx" :   self.dx, "dy" : self.dy, "dz" : self.dz, "nx" : self.nx, "ny" : self.ny, "nz" : self.nz,
+            "E_dx" : PhysicalModel.ep_dx, "E_dy" : PhysicalModel.ep_dy, "n_patterns" : self.n_patterns, "n_planes" : self.n_planes,
+            "down_factor" : self.dd_factor
+        }
+        new_df = pd.DataFrame(data_to_save, index = [0])
+        new_df.to_csv(logpath, mode='a', header=False, index=False)
+
+        
     def load_matrix(self, it = 0, original_ = True):
         """ 
         Method: function to load an available matrix together with parameters

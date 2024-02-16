@@ -14,8 +14,8 @@ class PhysicalModel:
     lambda_ = 532.0/1000                            #um
     NA      = 1.2
     r_index = 1.5
-    dx, dy, dz = 0.05, 0.05, 0.05                   #um
-    ep_dx, ep_dy = .1, .1
+    dx, dy, dz = 0.02, 0.02, 0.02                   #um
+    ep_dx, ep_dy = .64, .64
     
     def __init__(self, nx, ny, nz, n_patterns , dd_factor = 1, n_planes = 1,device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
         self.nx, self.ny, self.nz = nx, ny, nz
@@ -25,7 +25,7 @@ class PhysicalModel:
         self.n_planes = n_planes
         self.m_planes = [(i*nz)//(n_planes+1) for i in range(1,n_planes+1)]
         self.init_psf()
-        self.init_dmd()
+        # self.init_dmd()
 
     def __str__(self):
         desc = ""

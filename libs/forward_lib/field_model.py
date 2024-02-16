@@ -1,6 +1,6 @@
 from libs.forward_lib.physical_model import dmd_patterns, psf_model, conv_3D
 import torch
-from libs.forward_lib.visualizer import show_planes_z
+from libs.forward_lib.visualizer import show_planes_z, visualize_SSIM
 
 class FieldModel:
     """ 
@@ -62,10 +62,20 @@ class FieldModel:
         """ 
         Method: calculation of correlation between planes at specified seperation(um)
         """
-        pass
+        corr_list = []
+        plane_step  = max(1, round(seperation/self.dz))
+        n_planes = int(self.nz//plane_step)
+        for p in range(n_planes-1):
+            sig1 = self.H2[p*plane_step].flatten()
+            sig2 = self.H2[(p+1)*plane_step].flatten()
+            sigs = torch.stack((sig1, sig2))
+            corr = torch.corrcoef(sigs)[0][1].item()
+            corr_list.append(corr)
+        visualize_SSIM(measures=[corr_list], x_values=[(p-n_planes//2)*seperation for p in range( n_planes-1)], x_label="Left Plane", y_label="Cross-Correlation", title=f"Plane Seperation: {seperation}um")
+        
     
 
-    def save_object_space(self, it = 0):
+    def save_object_space(self, it = 100):
         """ 
         Method: calculation of correlation between planes at specified seperation(um)
         """
@@ -104,6 +114,6 @@ class FieldModel:
         """ 
         Method: visualizing planes at specified seperation(um)
         """
-        plane_step  = max(1, int(seperation//self.dz))
+        plane_step  = max(1, round(seperation/self.dz))
         n_planes = int(self.nz//plane_step)
         show_planes_z(self.H2.detach().cpu().numpy(), title = f"Seperation: {seperation}um", z_planes=[i*plane_step for i in range(n_planes)])
