@@ -9,10 +9,10 @@ class FieldModel:
     
     # Class Variables
     lambda_ = 532.0/1000                            #um
-    NA      = 1.2
-    r_index = 1.5
-    dx, dy, dz = 0.05, 0.05, 0.05                   #um
-    ep_dx, ep_dy = .5, .5
+    NA      = .8
+    r_index = 1
+    dx, dy, dz = 0.04, 0.04, 0.04                   #um
+    ep_dx, ep_dy = .64, .64
     
     def __init__(self, nx=4, ny=4, nz=4, device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
         self.nx, self.ny, self.nz = nx, ny, nz

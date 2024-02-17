@@ -2,10 +2,12 @@ from libs.forward_lib.physical_model import PhysicalModel
 import torch
 import pandas as pd
 
-def main():
+def store_psf():
+    """ 
+     
+    """
     nx, ny, nz = 4096, 4096, 1024
     
-    PhysicalModel.dx, PhysicalModel.dy, PhysicalModel.dz = .02, .02, .02
     par_list  = [[1.5, 1.2], [1., .8], [1.3, 1.]]
 
     for it, param in enumerate(par_list):
@@ -32,5 +34,6 @@ def main():
         new_df = pd.DataFrame(log_data, index = [0])
         new_df.to_csv(log_path, mode='a', header=False, index=False)
 
+
 if __name__ == "__main__":
-    main()
+    store_psf()

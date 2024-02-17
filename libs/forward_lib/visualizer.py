@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import torch
-
+from matplotlib.cm import ScalarMappable
 
 # Showing planes of a 3D Tensor
 def show_planes(outs, title, N_z=16):  # outs.shape: [Nz, Nx, Ny]
@@ -66,6 +66,7 @@ def vis_3d(image, title = "3D Object", elev_ang = 10, azim_ang = 40, fig_size = 
     fig = plt.figure(figsize=fig_size)
     ax = fig.add_subplot(111, projection='3d')
     z, x, y = image.shape
+
     colors = plt.cm.jet(image)
 
     ax.voxels(image, facecolors=colors, alpha= .5)
@@ -76,6 +77,12 @@ def vis_3d(image, title = "3D Object", elev_ang = 10, azim_ang = 40, fig_size = 
     ax.set_xticks([]), ax.set_yticks([]), ax.set_zticks([])
     ax.view_init(elev=elev_ang, azim=azim_ang)
     ax.set_box_aspect([z, y, x])
+    
+    sm = ScalarMappable(cmap=plt.cm.jet)
+    sm.set_array(image)
+    cbar = plt.colorbar(sm, ax=ax, pad=0.1)
+    cbar.set_label('Intensity')
+    
     plt.show()
 
 

@@ -14,10 +14,12 @@ class MnistSimulator:
     int_weight = .3
     mx, my, mz = 28, 28, 28
 
-    def __init__(self, nx, ny, nz, n_bodies = 1):
+    def __init__(self, nx, ny, nz, n_bodies = 1, up_factor = 1):
         self.nx, self.ny, self.nz = nx, ny, nz
         self.n_bodies = n_bodies
+        self.up_factor = up_factor
         self.X = torch.zeros(nz, nx, ny).to(self.device)
+        self.uSampler = torch.nn.Upsample(scale_factor=up_factor, mode='trilinear')
         self.load_mnist_data()
 
     def __str__(self):
@@ -27,14 +29,16 @@ class MnistSimulator:
         desc += f"Spatial Dimension\t\t: {self.nx}×{self.ny}×{self.nz}\n"
         desc += f"Number of Bodies \t\t: {self.n_bodies}\n"
         desc += f"Original Intensity Weight \t: {self.int_weight}\n"
+        desc += f"Upsampling Factor\t\t: {self.up_factor}\n"
         return desc
 
 
     def update_data(self):
         self.X[:, :, :] = 0
         for i in range(self.n_bodies):
-            sx, sy, sz = randint(0, self.nx-self.mx), randint(0, self.ny-self.my), randint(0, self.nz-self.mz)
-            self.X[sz:sz+self.mz, sx:sx+self.mx, sy:sy+self.my] = self.augmented_mnist_body()
+            ux, uy , uz  = self.mx*self.up_factor, self.my*self.up_factor, self.mz*self.up_factor
+            sx, sy, sz = randint(0, self.nx-ux), randint(0, self.ny-uy), randint(0, self.nz-uz)
+            self.X[sz:sz+uz, sx:sx+ux, sy:sy+uy] = self.uSampler(self.augmented_mnist_body().unsqueeze(0).unsqueeze(0)).squeeze()
         
 
     def load_mnist_data(self):
@@ -48,7 +52,7 @@ class MnistSimulator:
 
         body = self.transform(self.mnist_trainset[body_id][0]).to(self.device)
         s_body = body.repeat(28, 1, 1)
-        s_body[0:5, :, :] , s_body[23:28, :, :] = 0, 0
+        s_body[0:4, :, :] , s_body[24:28, :, :] = 0, 0
         r_body = self.rotate_3d_image(s_body, angle_x, angle_y, angle_z)
         smooth_body = self.normalize((r_body**self.int_weight)*self.intensity_smoother())
         return smooth_body
@@ -72,8 +76,11 @@ class MnistSimulator:
     def normalize(self, object):
         return (object - object.min())/(object.max()-object.min())
     
-    def visualize_object(self, ele_ang=10, azim_ang = 40):
-        vs.vis_3d(self.X.detach().cpu(), elev_ang=ele_ang, azim_ang=azim_ang)
+    def visualize_object(self, ele_ang=10, azim_ang = 40, vis_planes = False):
+        if vis_planes:
+            vs.show_planes(self.X.detach().cpu(),title="Object" ,N_z=self.nz)
+        else:
+            vs.vis_3d(self.X.detach().cpu(), elev_ang=ele_ang, azim_ang=azim_ang)
         
 
 class SyntheticBeadSimulator:

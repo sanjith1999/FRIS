@@ -12,9 +12,9 @@ class PhysicalModel:
     
     # Class Variables
     lambda_ = 532.0/1000                            #um
-    NA      = 1.2
-    r_index = 1.5
-    dx, dy, dz = 0.02, 0.02, 0.02                   #um
+    NA      = .8
+    r_index = 1
+    dx, dy, dz = 0.04, 0.04, 0.04                   #um
     ep_dx, ep_dy = .64, .64
     
     def __init__(self, nx, ny, nz, n_patterns , dd_factor = 1, n_planes = 1,device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
