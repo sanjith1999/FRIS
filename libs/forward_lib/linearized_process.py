@@ -13,10 +13,10 @@ class LinearizedModel:
     # Class Variables
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     dx, dy, dz = PhysicalModel.dx, PhysicalModel.dy, PhysicalModel.dz
-    v_dx, v_dy, v_dz = .32, .32, .32                                 #um
+    v_dx, v_dy, v_dz = .32, .32, .32                                #um
     v_nx, v_ny, v_nz = int(v_dx/dx), int(v_dy/dy), int(v_dz/dz)
 
-    def __init__(self, nx, ny, nz,n_patterns ,dd_factor = 1, n_planes=1, init_call = False):
+    def __init__(self, nx = 16, ny=16, nz=16,n_patterns=2,dd_factor = 1, n_planes=1, init_call = False):
         self.nx, self.ny, self.nz = nx, ny, nz
         self.dd_factor = dd_factor
         self.n_planes = n_planes

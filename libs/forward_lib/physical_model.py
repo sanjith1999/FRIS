@@ -25,7 +25,7 @@ class PhysicalModel:
         self.n_planes = n_planes
         self.m_planes = [(i*nz)//(n_planes+1) for i in range(1,n_planes+1)]
         self.init_psf()
-        # self.init_dmd()
+        self.init_dmd()
 
     def __str__(self):
         desc = ""

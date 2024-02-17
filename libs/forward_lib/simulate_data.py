@@ -13,12 +13,13 @@ class MnistSimulator:
     device = LinearizedModel.device
     int_weight = .3
     mx, my, mz = 28, 28, 28
+    v_nx, v_ny, v_nz = LinearizedModel.v_nx, LinearizedModel.v_ny, LinearizedModel.v_nz
 
     def __init__(self, nx, ny, nz, n_bodies = 1, up_factor = 1):
         self.nx, self.ny, self.nz = nx, ny, nz
         self.n_bodies = n_bodies
         self.up_factor = up_factor
-        self.X = torch.zeros(nz, nx, ny).to(self.device)
+        self.X = torch.zeros(1,nz, nx, ny).to(self.device)
         self.uSampler = torch.nn.Upsample(scale_factor=up_factor, mode='trilinear')
         self.load_mnist_data()
 
@@ -34,11 +35,11 @@ class MnistSimulator:
 
 
     def update_data(self):
-        self.X[:, :, :] = 0
+        self.X[:, :, :, :] = 0
         for i in range(self.n_bodies):
             ux, uy , uz  = self.mx*self.up_factor, self.my*self.up_factor, self.mz*self.up_factor
             sx, sy, sz = randint(0, self.nx-ux), randint(0, self.ny-uy), randint(0, self.nz-uz)
-            self.X[sz:sz+uz, sx:sx+ux, sy:sy+uy] = self.uSampler(self.augmented_mnist_body().unsqueeze(0).unsqueeze(0)).squeeze()
+            self.X[0, sz:sz+uz, sx:sx+ux, sy:sy+uy] = self.uSampler(self.augmented_mnist_body().unsqueeze(0).unsqueeze(0)).squeeze()
         
 
     def load_mnist_data(self):
@@ -78,9 +79,16 @@ class MnistSimulator:
     
     def visualize_object(self, ele_ang=10, azim_ang = 40, vis_planes = False):
         if vis_planes:
-            vs.show_planes(self.X.detach().cpu(),title="Object" ,N_z=self.nz)
+            vs.show_planes(self.X[0].detach().cpu(),title="Object" ,N_z=self.nz)
         else:
-            vs.vis_3d(self.X.detach().cpu(), elev_ang=ele_ang, azim_ang=azim_ang)
+            vs.vis_3d(self.X[0].detach().cpu(), elev_ang=ele_ang, azim_ang=azim_ang)
+
+    def reduce_dimension(self):
+        """ 
+        Method: reduce the dimension of X through 3D average pooling
+        """
+        kernel_size = (self.v_nz, self.v_nx, self.v_ny)  
+        self.X_r = torch.nn.functional.avg_pool3d(self.X, kernel_size)
         
 
 class SyntheticBeadSimulator:
