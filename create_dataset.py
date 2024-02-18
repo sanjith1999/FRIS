@@ -61,7 +61,9 @@ def create_A(IT=11):
     LinearizedModel.device = 'cpu'
 
     # initialize A and store A_r
-    LM = LinearizedModel(nx,ny,nz,n_patterns,dd_factor,init_call=True)
+    LM = LinearizedModel(nx,ny,nz,n_patterns,dd_factor,init_call=False)
+    print(LM)
+    LM.init_models()
     LM.approximate_A()
     LM.save_matrix(it = IT, original_ = True)
     LM.save_matrix(it = IT, original_ = False)
@@ -75,7 +77,7 @@ def dataset_creater(IT = 11):
 
     device = LM.device
     nx, ny, nz = LM.nx, LM.ny, LM.nz
-    MS = MnistSimulator(nx, ny, nz, up_factor = 1)  
+    MS = MnistSimulator(nx, ny, nz, up_factor = 4)  
     num_data = 8
 
     X_r, Y = torch.tensor([]).to(device), torch.tensor([]).to(device)
