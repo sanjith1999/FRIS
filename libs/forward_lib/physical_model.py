@@ -39,14 +39,17 @@ class PhysicalModel:
         return desc
 
 
-    def init_psf(self):
-         """  
-         Method: calculate the point spread function and intepret both excitation and emission parts
-         """
-         psf = psf_model(self.NA, self.r_index, self.lambda_, self.dx, self.dy, self.dz, self.nx, self.ny, self.nz).to(self.device)
-         self.exPSF_3D = psf().detach().permute(0,3,1,2)
-         self.emPSF_3D = (self.exPSF_3D.abs()**2).sum(dim=0).unsqueeze(dim=0)
-         return 1
+    def init_psf(self, LOAD=-1):
+        """  
+        Method: calculate the point spread function and intepret both excitation and emission parts
+        """
+        if LOAD!=-1:
+            psf = (torch.load(f"./data/matrices/field/PSF_{LOAD}.pt")['matrix']).to(self.device)                                        # Manual extra-care should be taken to match parameters
+        else:
+            psf = psf_model(self.NA, self.r_index, self.lambda_, self.dx, self.dy, self.dz, self.nx, self.ny, self.nz).to(self.device)
+        self.exPSF_3D = psf().detach().permute(0,3,1,2)
+        self.emPSF_3D = (self.exPSF_3D.abs()**2).sum(dim=0).unsqueeze(dim=0)
+        return 1
     
     def init_dmd(self):
         """ 
