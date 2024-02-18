@@ -1,12 +1,12 @@
 import torch
 from tqdm import tqdm
 import pandas as pd
-from libs.forward_lib.physical_model import PhysicalModel
+from libs.forward_lib.physical_model import PhysicalModel, psf_model
 from libs.forward_lib.linearized_process import LinearizedModel
 from libs.forward_lib.simulate_data import MnistSimulator
 
 
-def store_psf():
+def field_related_calculations():
     nx, ny, nz = 2048, 2048, 512
     
     par_list  = [[1.5, 1.2], [1., .8], [1.3, 1.]]
@@ -36,10 +36,28 @@ def store_psf():
         new_df.to_csv(log_path, mode='a', header=False, index=False)
 
 
+def store_PSF():
+    nx, ny, nz = 128, 128, 128
+    NA = .8
+    r_index = 1
+    IT = 51                                                         # Let me stick to numbers between 50-100 here
+    
+    PSF = psf_model(NA=NA, Rindex=r_index, lambda_=PhysicalModel.lambda_ ,dx=PhysicalModel.dx, dy=PhysicalModel.dy, dz=PhysicalModel.dz, Nx=nx, Ny=ny, Nz=nz)
+    data_to_save = {
+        "r_index"   : r_index,
+        "NA"        : NA,
+        "dimension" : [nx, ny, nz],
+        "voxel"     : [PhysicalModel.dx, PhysicalModel.dy, PhysicalModel.dz],
+        "matrix"    : PSF
+    }
+    path_to_save = f'./data/matrices/field/PSF_{IT}.pt'
+    torch.save(data_to_save, path_to_save)
+
+
 def create_A(IT=11):
-    nx, ny, nz = 256, 256, 256
-    n_patterns = 64
-    dd_factor = 16
+    nx, ny, nz = 128, 128, 128
+    n_patterns = 32
+    dd_factor = 8
     LinearizedModel.device = 'cpu'
 
     # initialize A and store A_r

@@ -14,7 +14,7 @@ class PhysicalModel:
     lambda_ = 532.0/1000                            #um
     NA      = .8
     r_index = 1
-    dx, dy, dz = 0.04, 0.04, 0.04                   #um
+    dx, dy, dz = 0.08, 0.08, 0.08                   #um
     ep_dx, ep_dy = .64, .64
     
     def __init__(self, nx, ny, nz, n_patterns , dd_factor = 1, n_planes = 1,device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
@@ -39,12 +39,14 @@ class PhysicalModel:
         return desc
 
 
-    def init_psf(self, LOAD=-1):
+    def init_psf(self):
         """  
         Method: calculate the point spread function and intepret both excitation and emission parts
         """
-        if LOAD!=-1:
+        LOAD=51
+        if LOAD>0:
             psf = (torch.load(f"./data/matrices/field/PSF_{LOAD}.pt")['matrix']).to(self.device)                                        # Manual extra-care should be taken to match parameters
+            print("PSF Loaded Successfully...!")
         else:
             psf = psf_model(self.NA, self.r_index, self.lambda_, self.dx, self.dy, self.dz, self.nx, self.ny, self.nz).to(self.device)
         self.exPSF_3D = psf().detach().permute(0,3,1,2)
@@ -122,8 +124,6 @@ class PhysicalModel:
             Yi_flatten = Yi.flatten()
             Y = torch.cat((Y, Yi_flatten), dim=0)
         return Y
-            
-    
 
 class dmd_patterns:
     """ 
