@@ -55,9 +55,11 @@ class LinearizedModel:
         Method: calculation of A with the help of impulses in extended X
         """
         I = torch.zeros(1, self.nz, self.nx, self.ny).float().to(self.device)
-        for i_z in tqdm(range(self.nz), desc = "Plane Calculations: "):
+        # for i_z in tqdm(range(self.nz), desc = "Plane Calculations: "):
+        for i_z in range(self.nz):
             for i_x in range(self.nx):
-                for i_y in range(self.ny):
+                for i_y in tqdm(range(self.ny), desc=f"Nz: {i_z}/{self.nz}, Nx: {i_x}/{self.nx}, Ny: "):
+                # for i_y in range(self.ny):
                     I[0, i_z, i_x, i_y] = 1
                     self.A[:, i_z*self.ny*self.nx + i_x*self.ny+i_y] = self.PM.extended_propagation(I)
                     I[0, i_z, i_x, i_y] = 0

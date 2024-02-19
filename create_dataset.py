@@ -56,9 +56,9 @@ def store_PSF():
 
 def create_A(IT=11):
     nx, ny, nz = 128, 128, 128
-    n_patterns = 32
+    n_patterns = 2
     dd_factor = 8
-    LinearizedModel.device = 'cpu'
+    # LinearizedModel.device = 'cpu'
 
     # initialize A and store A_r
     LM = LinearizedModel(nx,ny,nz,n_patterns,dd_factor,init_call=False)
