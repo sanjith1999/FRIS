@@ -64,8 +64,8 @@ def create_A(IT=11):
     LM = LinearizedModel(nx,ny,nz,n_patterns,dd_factor,init_call=False)
     print(LM)
     LM.init_models()
-    LM.approximate_A()
     LM.save_matrix(it = IT, original_ = True)
+    LM.approximate_A()
     LM.save_matrix(it = IT, original_ = False)
     print(LM)
 

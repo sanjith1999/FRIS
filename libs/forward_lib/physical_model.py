@@ -46,7 +46,7 @@ class PhysicalModel:
         LOAD=51
         if LOAD>0:
             psf = (torch.load(f"./data/matrices/field/PSF_{LOAD}.pt")['matrix']).to(self.device)                                        # Manual extra-care should be taken to match parameters
-            print("PSF Loaded Successfully...!")
+            print("PSF Loaded Successfully...!\n\n")
         else:
             psf = psf_model(self.NA, self.r_index, self.lambda_, self.dx, self.dy, self.dz, self.nx, self.ny, self.nz).to(self.device)
         self.exPSF_3D = psf().detach().permute(0,3,1,2)
