@@ -47,7 +47,7 @@ class EfficientModel:
         else:
             psf = psf_model(self.NA, self.r_index, self.lambda_, self.dx, self.dy, self.dz, self.nx, self.ny, self.nz).to(self.device)
         self.exPSF_3D = psf().detach().permute(0,3,1,2)
-        self.emPSF_3D = ((self.exPSF_3D.abs()**2).sum(dim=0)**0.5).unsqueeze(dim=0)
+        self.emPSF_3D = self.exPSF_3D.abs().square().sum(dim=0).sqrt().unsqueeze(dim=0)
         return 1
     
     def init_dmd(self):
@@ -67,7 +67,7 @@ class EfficientModel:
         ht_3D[:, self.nz // 2] = self.dmd.ht_2D_list[p_no-1]
 
         H1 = conv_3D(self.exPSF_3D, ht_3D)
-        self.H2 = ((H1.abs()**2).sum(dim=0))**0.5                                                                       
+        self.H2 = H1.abs().square().sum(dim=0).sqrt()                                                                       
 
     def propagate_object(self, X):
         H3 = X * self.H2
