@@ -47,7 +47,7 @@ class EfficientModel:
         else:
             psf = psf_model(self.NA, self.r_index, self.lambda_, self.dx, self.dy, self.dz, self.nx, self.ny, self.nz).to(self.device)
         self.exPSF_3D = psf().detach().permute(0,3,1,2)
-        self.emPSF_3D = (self.exPSF_3D.abs()**2).sum(dim=0).unsqueeze(dim=0)
+        self.emPSF_3D = ((self.exPSF_3D.abs()**2).sum(dim=0)**0.5).unsqueeze(dim=0)
         return 1
     
     def init_dmd(self):

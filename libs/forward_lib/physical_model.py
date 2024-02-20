@@ -50,7 +50,7 @@ class PhysicalModel:
         else:
             psf = psf_model(self.NA, self.r_index, self.lambda_, self.dx, self.dy, self.dz, self.nx, self.ny, self.nz).to(self.device)
         self.exPSF_3D = psf().detach().permute(0,3,1,2)
-        self.emPSF_3D = (self.exPSF_3D.abs()**2).sum(dim=0).unsqueeze(dim=0)
+        self.emPSF_3D = ((self.exPSF_3D.abs()**2).sum(dim=0)**0.5).unsqueeze(dim=0)
         return 1
     
     def init_dmd(self):
@@ -80,6 +80,7 @@ class PhysicalModel:
         scale_factor = (1, 1/self.dd_factor, 1/self.dd_factor) if len(det_Y.shape)==3 else (1/self.dd_factor, 1/self.dd_factor)
         det_Y = nn.functional.interpolate(det_Y.unsqueeze(0).unsqueeze(0), scale_factor=scale_factor, mode='area').squeeze()
 
+        # Visualizing Stuff
         if verbose > 0:
             det_R = det_Y.detach().cpu().numpy()
             if verbose > 1:
