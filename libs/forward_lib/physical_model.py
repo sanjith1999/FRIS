@@ -43,7 +43,7 @@ class PhysicalModel:
         """  
         Method: calculate the point spread function and intepret both excitation and emission parts
         """
-        LOAD=51
+        LOAD=-1
         if LOAD>0:
             psf = (torch.load(f"./data/matrices/field/PSF_{LOAD}.pt")['matrix']).to(self.device)                                        # Manual extra-care should be taken to match parameters
             print("PSF Loaded Successfully...!\n\n")
@@ -71,38 +71,22 @@ class PhysicalModel:
         ht_3D[:, self.nz // 2] = self.dmd.ht_2D_list[p_no-1]
 
         H1 = conv_3D(self.exPSF_3D, ht_3D)
-        H2 = (H1.abs()**2).sum(dim=0)                                                                       # field in the object space
+        H2 = ((H1.abs()**2).sum(dim=0))**0.5                                                                       # field in the object space
 
         H3 = X * H2
         Y = conv_3D(self.emPSF_3D, H3).abs()[0]                                                             # field around the detector
+        self.Y = Y
         det_Y = Y[self.m_planes, :, :]
         scale_factor = (1, 1/self.dd_factor, 1/self.dd_factor) if len(det_Y.shape)==3 else (1/self.dd_factor, 1/self.dd_factor)
         det_Y = nn.functional.interpolate(det_Y.unsqueeze(0).unsqueeze(0), scale_factor=scale_factor, mode='area').squeeze()
 
-        ####### DETACH IMPORTANT OBJECTS TO VISUALIZE ##########
-        # Excitation Pattern Convolved with Coherent PSF : H2
-        coherent_out = H2.detach().cpu().numpy()
-        # Normalized Image : X
-        I = X[0].detach().cpu().numpy()
-
-        # Image at Camera: Y
-        R = Y.detach().cpu().numpy()
-
-        # Image at Detector: ~Y
-        det_R = det_Y.detach().cpu().numpy()
-
-        """     
-        verbose = 0 -> No Visualization
-        verbose = 1 -> Visualize Detected Image
-        verbose = 2 -> Object & Y
-        verbose = 3 -> Excitation Pattern & H2
-        verbose = 4 -> Printout the shapes of all matrices
-        """
-        if verbose >3:
-            print(f"Shapes of vectors\n exPSF: {self.exPSF_3D.shape}\n H1: {H1.shape}\n H2: {H2.shape}\n emPSF: {self.emPSF_3D.shape}\n H3: {H3.shape}")
         if verbose > 0:
+            det_R = det_Y.detach().cpu().numpy()
             if verbose > 1:
+                I = X[0].detach().cpu().numpy()
+                R = Y.detach().cpu().numpy()
                 if verbose > 2:
+                    coherent_out = H2.detach().cpu().numpy()
                     vs.show_planes(coherent_out, title=f'H2', N_z=self.nz)
                 vs.show_planes(I, title=f"Object", N_z=self.nz)
                 vs.show_planes(R, title=f'Y', N_z=self.nz)
@@ -110,6 +94,8 @@ class PhysicalModel:
                 vs.show_image(det_R, f"M-Plane: {self.m_planes[0]}", (3, 3))
             else:
                 vs.show_images(images=[det_r for det_r in det_R], titles=[f"M-Plane: {i}" for i in self.m_planes], figsize=(3*self.n_planes, 3), cols = self.n_planes)
+        if verbose >3:
+            print(f"Shapes of vectors\n exPSF: {self.exPSF_3D.shape}\n H1: {H1.shape}\n H2: {H2.shape}\n emPSF: {self.emPSF_3D.shape}\n H3: {H3.shape}")
 
 
         return det_Y
@@ -187,7 +173,7 @@ def calculate_phi(NPXLS):
 
 
 # 3D Convolution
-def conv_3D(PSF_3D, H):
+def conv_3D(PSF_3D, H, padding = -1):
 
     Ht_fft = torch.fft.fftshift(torch.fft.fftn(torch.fft.ifftshift(H, dim=(-3, -2, -1)), dim=(-3, -2, -1)), dim=(-3, -2, -1))
     PSF_fft = torch.fft.fftshift(torch.fft.fftn(torch.fft.ifftshift(PSF_3D, dim=(-3, -2, -1)), dim=(-3, -2, -1)), dim=(-3, -2, -1))

@@ -2,6 +2,7 @@ import torch
 from tqdm import tqdm
 import pandas as pd
 from libs.forward_lib.physical_model import PhysicalModel, psf_model
+from libs.efficient_lib.efficient_process import EfficientProcess
 from libs.forward_lib.linearized_process import LinearizedModel
 from libs.forward_lib.simulate_data import MnistSimulator
 
@@ -61,13 +62,10 @@ def create_A(IT=11):
     # LinearizedModel.device = 'cpu'
 
     # initialize A and store A_r
-    LM = LinearizedModel(nx,ny,nz,n_patterns,dd_factor,init_call=False)
-    print(LM)
-    LM.init_models()
-    LM.save_matrix(it = IT, original_ = True)
-    LM.approximate_A()
-    LM.save_matrix(it = IT, original_ = False)
-    print(LM)
+    EP = EfficientProcess(nx,ny,nz,n_patterns,dd_factor)
+    print(EP)
+    EP.init_models()
+    EP.save_matrix(it = IT)
 
 
 def dataset_creater(IT = 11):
