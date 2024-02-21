@@ -16,6 +16,7 @@ class PhysicalModel:
     r_index = 1
     dx, dy, dz = 0.08, 0.08, 0.08                   #um
     ep_dx, ep_dy = .64, .64
+    w=2
     
     def __init__(self, nx, ny, nz, n_patterns , dd_factor = 1, n_planes = 1,device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
         self.nx, self.ny, self.nz = nx, ny, nz
@@ -70,11 +71,11 @@ class PhysicalModel:
             print("Not enough DMD patterns...!")
         ht_3D[:, self.nz // 2] = self.dmd.ht_2D_list[p_no-1]
 
-        H1 = conv_3D(self.exPSF_3D, ht_3D)
+        H1 = conv_3D(self.exPSF_3D, ht_3D, self.w)
         H2 = H1.abs().square().sum(dim=0).sqrt()                                                                      # field in the object space
 
         H3 = X * H2
-        Y = conv_3D(self.emPSF_3D, H3).abs()[0]                                                             # field around the detector
+        Y = conv_3D(self.emPSF_3D, H3,self.w).abs()[0]                                                             # field around the detector
         self.Y = Y
         det_Y = Y[self.m_planes, :, :]
         scale_factor = (1, 1/self.dd_factor, 1/self.dd_factor) if len(det_Y.shape)==3 else (1/self.dd_factor, 1/self.dd_factor)
@@ -172,14 +173,21 @@ def calculate_phi(NPXLS):
     phi = torch.atan2(Y, X)
     return phi
 
-
 # 3D Convolution
-def conv_3D(PSF_3D, H, padding = -1):
+def conv_3D(PSF_3D, H, w = 1):
+    Bp, nz, nx, ny = PSF_3D.shape
+    Bh,_, _, _ = H.shape
+    PSF_3D_PAD = torch.zeros(Bp, w*nz, w*nx, w*ny).type(torch.complex64).to(PSF_3D.device)
+    H_PAD = torch.zeros(Bh, w*nz, w*nx, w*ny).type(torch.complex64).to(H.device)
 
-    Ht_fft = torch.fft.fftshift(torch.fft.fftn(torch.fft.ifftshift(H, dim=(-3, -2, -1)), dim=(-3, -2, -1)), dim=(-3, -2, -1))
-    PSF_fft = torch.fft.fftshift(torch.fft.fftn(torch.fft.ifftshift(PSF_3D, dim=(-3, -2, -1)), dim=(-3, -2, -1)), dim=(-3, -2, -1))
-    conv_PSF_H = torch.fft.fftshift(torch.fft.ifftn(torch.fft.ifftshift(PSF_fft * Ht_fft, dim=(-3, -2, -1)), dim=(-3, -2, -1)), dim=(-3, -2, -1))
+    PSF_3D_PAD[:,(w-1)*nz//2:nz+(w-1)*nz//2, (w-1)*nx//2:nx+(w-1)*nx//2, (w-1)*ny//2:ny+(w-1)*ny//2]= PSF_3D
+    H_PAD[:,(w-1)*nz//2:nz+(w-1)*nz//2, (w-1)*nx//2:nx+(w-1)*nx//2, (w-1)*ny//2:ny+(w-1)*ny//2]= H
 
+    Ht_fft = torch.fft.fftshift(torch.fft.fftn(torch.fft.ifftshift(H_PAD, dim=(-3, -2, -1)), dim=(-3, -2, -1)), dim=(-3, -2, -1))
+    PSF_fft = torch.fft.fftshift(torch.fft.fftn(torch.fft.ifftshift(PSF_3D_PAD, dim=(-3, -2, -1)), dim=(-3, -2, -1)), dim=(-3, -2, -1))
+    conv_PSF_H_PAD = torch.fft.fftshift(torch.fft.ifftn(torch.fft.ifftshift(PSF_fft * Ht_fft, dim=(-3, -2, -1)), dim=(-3, -2, -1)), dim=(-3, -2, -1))
+
+    conv_PSF_H =conv_PSF_H_PAD[:,(w-1)*nz//2:(w-1)*nz//2+nz ,(w-1)*nx//2:(w-1)*nx//2+nx, (w-1)*ny//2:(w-1)*ny//2+ny]
     return conv_PSF_H
 
 

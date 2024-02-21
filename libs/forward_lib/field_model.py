@@ -13,6 +13,7 @@ class FieldModel:
     r_index = 1
     dx, dy, dz = 0.08, 0.08, 0.08                   #um
     ep_dx, ep_dy = .64, .64
+    w = 4
     
     def __init__(self, nx=4, ny=4, nz=4, device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
         self.nx, self.ny, self.nz = nx, ny, nz
@@ -41,7 +42,7 @@ class FieldModel:
         else:
             psf = psf_model(self.NA, self.r_index, self.lambda_, self.dx, self.dy, self.dz, self.nx, self.ny, self.nz).to(self.device)
         self.exPSF_3D = psf().detach().permute(0,3,1,2)
-        self.emPSF_3D = (self.exPSF_3D.abs()**2).sum(dim=0).unsqueeze(dim=0)
+        self.emPSF_3D = self.exPSF_3D.abs().square().sum(dim=0).unsqueeze(dim=0).sqrt()
         return 1
     
     def init_dmd(self):
@@ -59,8 +60,8 @@ class FieldModel:
         ht_3D = torch.zeros(1, self.nz, self.nx, self.ny).float().to(self.device)               # DMD in 3D
         ht_3D[:, self.nz // 2] = self.dmd.ht_2D_list[0]
 
-        H1 = conv_3D(self.exPSF_3D, ht_3D)
-        self.H2 = ((H1.abs()**2).sum(dim=0))**0.5                                                # field in the object space
+        H1 = conv_3D(self.exPSF_3D, ht_3D, self.w)
+        self.H2 = H1.abs().square().sum(dim=0).sqrt()                                       # field in the object space
         return 1
     
     def correlation_measure(self, seperation = 1):
