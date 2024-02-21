@@ -11,7 +11,7 @@ class EfficientModel:
     lambda_ = 532.0/1000                            #um
     NA      = .8
     r_index = 1
-    dx, dy, dz = 0.08, 0.08, 0.08                   #um
+    dx, dy, dz = 0.04, 0.04, 0.04                   #um
     ep_dx, ep_dy = .64, .64
     
     def __init__(self, nx, ny, nz, n_patterns , dd_factor = 1, n_planes = 1,device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
@@ -41,7 +41,7 @@ class EfficientModel:
         """  
         Method: calculate the point spread function and intepret both excitation and emission parts
         """
-        LOAD=-1
+        LOAD=52
         if LOAD>0:
             psf = (torch.load(f"./data/matrices/field/PSF_{LOAD}.pt")['matrix']).to(self.device)                                        # Manual extra-care should be taken to match parameters
             print("PSF Loaded Successfully...!\n\n")

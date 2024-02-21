@@ -41,7 +41,7 @@ def store_PSF():
     nx, ny, nz = 128, 128, 128
     NA = .8
     r_index = 1
-    IT = 51                                                         # Let me stick to numbers between 50-100 here
+    IT = 52                                                         # Let me stick to numbers between 50-100 here
     
     PSF = psf_model(NA=NA, Rindex=r_index, lambda_=PhysicalModel.lambda_ ,dx=PhysicalModel.dx, dy=PhysicalModel.dy, dz=PhysicalModel.dz, Nx=nx, Ny=ny, Nz=nz)
     data_to_save = {
@@ -56,10 +56,10 @@ def store_PSF():
 
 
 def create_A(IT=11):
-    nx, ny, nz = 128, 128, 128
-    n_patterns = 2
-    dd_factor = 8
-    # LinearizedModel.device = 'cpu'
+    nx, ny, nz = 256, 256, 256
+    n_patterns = 16
+    dd_factor = 16
+    EfficientProcess.device = 'cpu'
 
     # initialize A and store A_r
     EP = EfficientProcess(nx,ny,nz,n_patterns,dd_factor)
