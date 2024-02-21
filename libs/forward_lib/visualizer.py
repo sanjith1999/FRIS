@@ -43,7 +43,7 @@ def show_image(image, title='', fig_size=(5, 5)):
 
 
 # Function to display images in a grid
-def show_images(images, titles=None, cols=4, figsize=(12, 6)):
+def show_images(images, titles=None, cols=4, figsize=(12, 6), v_range = None):
     rows = len(images) // cols + (len(images) % cols > 0)
     fig, axes = plt.subplots(rows, cols, figsize=figsize)
 
@@ -52,7 +52,10 @@ def show_images(images, titles=None, cols=4, figsize=(12, 6)):
 
     for i, (image, title) in enumerate(zip(images, titles)):
         ax = axes.flatten()[i]
-        ax.imshow(image)
+        if range is not None:
+            ax.imshow(image,vmax = v_range[1], vmin = v_range[0])
+        else:
+            ax.imshow(image)
         ax.set_title(title)
         ax.axis('off')
 
