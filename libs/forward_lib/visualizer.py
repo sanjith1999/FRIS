@@ -52,7 +52,7 @@ def show_images(images, titles=None, cols=4, figsize=(12, 6), v_range = None):
 
     for i, (image, title) in enumerate(zip(images, titles)):
         ax = axes.flatten()[i]
-        if range is not None:
+        if v_range is not None:
             ax.imshow(image,vmax = v_range[1], vmin = v_range[0])
         else:
             ax.imshow(image)

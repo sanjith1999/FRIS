@@ -46,16 +46,12 @@ class EfficientProcess:
         """ 
         Method: calculation of A with the help of impulses in extended X
         """
-        I = torch.zeros(1, self.nz, self.nx, self.ny).float().to(self.device)
-
         for i_p in range(self.n_patterns):
            self.EM.propagate_dmd(p_no = i_p+1)
            for i_z in range(self.nz):
                 for i_x in tqdm(range(self.nx), desc = f"Pattern: {i_p+1}/{self.n_patterns}\t Nz: {i_z+1}/{self.nz}\t Nx: "):
                     for i_y in range(self.ny):
-                        I[0, i_z, i_x, i_y] = 1
-                        self.A[i_p*self.measure_pp:i_p*self.measure_pp+ self.measure_pp, i_z*self.ny*self.nx + i_x*self.ny+i_y] = self.EM.propagate_object(I).flatten()
-                        I[0, i_z, i_x, i_y] = 0
+                        self.A[i_p*self.measure_pp:i_p*self.measure_pp+ self.measure_pp, i_z*self.ny*self.nx + i_x*self.ny+i_y] = self.EM.propagate_object((i_x, i_y, i_z)).flatten()
         return "SUCCESS...!"
     
 

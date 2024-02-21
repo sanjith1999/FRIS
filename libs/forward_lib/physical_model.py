@@ -278,3 +278,62 @@ class psf_model(nn.Module):
             PSF_3D[2, :, :, k] = Ez
 
         return PSF_3D
+
+
+############################################### CONVOLUTION ADDITION KIND ########################## SUGGESTION : ISHRATH
+def get_Y(emPSF_3D, H3):
+    d = emPSF_3D.shape[-3]
+    h = emPSF_3D.shape[-2]
+    w = emPSF_3D.shape[-1]
+
+    pad_d = d
+    pad_h = h
+    pad_w = w
+    emPSF_3D_padded = torch.nn.functional.pad(emPSF_3D, (pad_w, pad_w, pad_h, pad_h, pad_d, pad_d), mode='constant', value=0)
+
+    # Initialize Y with the same shape as emPSF_3D after padding
+    Y = torch.zeros_like(emPSF_3D_padded)
+
+    for i in range(d):
+        for j in range(h):
+            for k in range(w):
+                if H3[0][i][j][k] != 0:
+                    shift_d = i - d//2
+                    shift_h = j - h//2
+                    shift_w = k - w//2
+                    
+                    shifted_emPSF_3D = torch.roll(emPSF_3D_padded, shifts=(shift_d, shift_h, shift_w), dims=(-3, -2, -1))
+                    Y += shifted_emPSF_3D
+
+    crop_d = (emPSF_3D_padded.shape[-3] - d) // 2
+    crop_h = (emPSF_3D_padded.shape[-2] - h) // 2
+    crop_w = (emPSF_3D_padded.shape[-1] - w) // 2
+    Y = Y[..., crop_d:crop_d+d, crop_h:crop_h+h, crop_w:crop_w+w]
+
+    return Y
+
+
+
+def get_H1(PSF_3D, ht_2D):
+    h = ht_2D.shape[0]
+    w = ht_2D.shape[1]
+    
+    pad_h = h
+    pad_w = w
+    PSF_3D = torch.nn.functional.pad(PSF_3D, (pad_w, pad_w, pad_h, pad_h))
+
+    H1 = torch.zeros_like(PSF_3D)
+
+    for i in range(h):
+        for j in range(w):
+            if ht_2D[i][j] == 1:
+                shift_h = i - h//2
+                shift_w = j - w//2
+                shifted_PSF_3D = torch.roll(PSF_3D, shifts=(shift_h, shift_w), dims=(-2, -1))
+                H1 += shifted_PSF_3D
+
+    crop_h = (PSF_3D.shape[-2] - h) // 2
+    crop_w = (PSF_3D.shape[-1] - w) // 2
+    H1 = H1[..., crop_h:crop_h+h, crop_w:crop_w+w]
+
+    return H1

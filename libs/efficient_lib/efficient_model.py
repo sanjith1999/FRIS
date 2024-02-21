@@ -21,6 +21,7 @@ class EfficientModel:
         self.dd_factor = dd_factor
         self.n_planes = n_planes
         self.m_planes = [(i*nz)//(n_planes+1) for i in range(1,n_planes+1)]
+        self.w = 2
         self.init_psf()
         self.init_dmd()
 
@@ -66,15 +67,22 @@ class EfficientModel:
             print("Not enough DMD patterns...!")
         ht_3D[:, self.nz // 2] = self.dmd.ht_2D_list[p_no-1]
 
-        H1 = conv_3D(self.exPSF_3D, ht_3D)
+        H1 = conv_3D(self.exPSF_3D, ht_3D, w=self.w)
         self.H2 = H1.abs().square().sum(dim=0).sqrt()                                                                       
 
-    def propagate_object(self, X):
-        H3 = X * self.H2
-        Y = conv_3D(self.emPSF_3D, H3).abs()[0]                                                             # field around the detector
-        det_Y = Y[self.m_planes, :, :]
-        scale_factor = (1, 1/self.dd_factor, 1/self.dd_factor) if len(det_Y.shape)==3 else (1/self.dd_factor, 1/self.dd_factor)
-        det_Y = torch.nn.functional.interpolate(det_Y.unsqueeze(0).unsqueeze(0), scale_factor=scale_factor, mode='area').squeeze()
-        return det_Y
+    def propagate_object(self, cor = (0,0,0)):
+            ix, iy, iz = cor
+            cx, cy = self.nx//2, self.ny//2
+            det_Y = torch.zeros(self.nx, self.ny).to(self.device).float()
+
+            i_iz = self.nz-iz
+            l_ix, l_iy = min(cx, ix), min(cy, iy)
+            r_ix, r_iy = min(self.nx-ix, cx), min(self.ny-iy, cy) 
+
+            if i_iz < self.nz:
+                det_Y[ix-l_ix:ix+r_ix, iy-l_iy: iy+r_iy] = self.H2[iz, ix, iy]* self.emPSF_3D[0, i_iz,cx-l_ix: cx+r_ix, cy-l_iy:cy+r_iy ]
+            scale_factor = (1/self.dd_factor, 1/self.dd_factor)
+            det_Y = torch.nn.functional.interpolate(det_Y.unsqueeze(0).unsqueeze(0), scale_factor=scale_factor, mode='area').squeeze()
+            return det_Y
     
 
