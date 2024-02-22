@@ -61,6 +61,34 @@ class PhysicalModel:
         self.dmd = dmd_patterns(self.ep_dx, self.ep_dy, self.dx, self.dy, self.nx, self.ny, self.device)
         self.dmd.initialize_patterns(self.n_patterns)
 
+    def propagate_dmd(self, p_no = 1):
+        """ 
+        Method: forwarding DMD pattern to object space
+        """
+        ht_3D = torch.zeros(1, self.nz, self.nx, self.ny).float().to(self.device)               # DMD in 3D
+        if p_no > self.dmd.n_patterns:
+            print("Not enough DMD patterns...!")
+        ht_3D[:, self.nz // 2] = self.dmd.ht_2D_list[p_no-1]
+
+        H1 = conv_3D(self.exPSF_3D, ht_3D, w=self.w)
+        self.H2 = H1.abs().square().sum(dim=0).sqrt()   
+
+    def propagate_impulse(self, cor = (0,0,0)):
+        
+        ix, iy, iz = cor
+        cx, cy = self.nx//2, self.ny//2
+        det_Y = torch.zeros(self.nx, self.ny).to(self.device).float()
+
+        i_iz = self.nz-iz
+        l_ix, l_iy = min(cx, ix), min(cy, iy)
+        r_ix, r_iy = min(self.nx-ix, cx), min(self.ny-iy, cy) 
+
+        if i_iz < self.nz:
+            det_Y[ix-l_ix:ix+r_ix, iy-l_iy: iy+r_iy] = self.H2[iz, ix, iy]* self.emPSF_3D[0, i_iz,cx-l_ix: cx+r_ix, cy-l_iy:cy+r_iy ]
+        scale_factor = (1/self.dd_factor, 1/self.dd_factor)
+        det_Y = torch.nn.functional.interpolate(det_Y.unsqueeze(0).unsqueeze(0), scale_factor=scale_factor, mode='area').squeeze()
+        return det_Y
+
     def propagate_object(self, X, p_no=1, verbose=0):
         """ 
         Method: forward process on an object
@@ -113,6 +141,9 @@ class PhysicalModel:
             Y = torch.cat((Y, Yi_flatten), dim=0)
         return Y
 
+
+
+
 class dmd_patterns:
     """ 
     Class: Store multiple DMD patterns
@@ -151,9 +182,9 @@ class dmd_patterns:
         Method: visualizing the DMD patterns
         """
         if self.n_patterns == 1:
-            vs.show_image(self.ht_2D_list[0].cpu().detach(), "Pattern")
+            vs.show_image(self.ht_2D_list[0].cpu().detach(), "Pattern", fig_size=(3, 3))
         elif self.n_patterns > 1:
-            vs.show_images([ht_2D.cpu().detach() for ht_2D in self.ht_2D_list], titles = [f"Pattern {i+1}" for i in range(self.n_patterns)], cols=self.n_patterns)
+            vs.show_images([ht_2D.cpu().detach() for ht_2D in self.ht_2D_list], titles = [f"Pattern {i+1}" for i in range(self.n_patterns)], cols=self.n_patterns, figsize=(6,3))
         else:
             print("Nothing to visualize...!")
 

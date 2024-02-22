@@ -1,8 +1,6 @@
 import torch
-from tqdm import tqdm
 import pandas as pd
 from libs.forward_lib.physical_model import PhysicalModel, psf_model
-from libs.efficient_lib.efficient_process import EfficientProcess
 from libs.forward_lib.linearized_process import LinearizedModel
 from libs.forward_lib.simulate_data import MnistSimulator
 
@@ -37,11 +35,12 @@ def field_related_calculations():
         new_df.to_csv(log_path, mode='a', header=False, index=False)
 
 
+# Calculate PSF of necessary Dimension and Store it before finding the Transformation A
 def store_PSF():
     nx, ny, nz = 128, 128, 128
     NA = .8
     r_index = 1
-    IT = 52                                                         # Let me stick to numbers between 50-100 here
+    IT = 51                                                         # Let me stick to numbers between 50-100 here
     
     PSF = psf_model(NA=NA, Rindex=r_index, lambda_=PhysicalModel.lambda_ ,dx=PhysicalModel.dx, dy=PhysicalModel.dy, dz=PhysicalModel.dz, Nx=nx, Ny=ny, Nz=nz)
     data_to_save = {
@@ -55,44 +54,49 @@ def store_PSF():
     torch.save(data_to_save, path_to_save)
 
 
-def create_A(IT=11):
-    nx, ny, nz = 256, 256, 256
-    n_patterns = 16
-    dd_factor = 16
-    EfficientProcess.device = 'cpu'
+# Calculation of matrix A
+def create_A():
+    nx, ny, nz = 128, 128, 128
+    n_patterns = 2
+    dd_factor = 8
+    # PhysicalModel.device = 'cpu'
 
-    # initialize A and store A_r
-    EP = EfficientProcess(nx,ny,nz,n_patterns,dd_factor)
-    print(EP)
-    EP.init_models()
-    EP.save_matrix(it = IT)
-
-
-def dataset_creater(IT = 11):
-    LM = LinearizedModel()
-    LM.load_matrix(it = IT, original_=True)
+    LM = LinearizedModel(nx,ny,nz,n_patterns,dd_factor)
+    LM.init_models()
     print(LM)
-
-    device = LM.device
-    nx, ny, nz = LM.nx, LM.ny, LM.nz
-    MS = MnistSimulator(nx, ny, nz, up_factor = 4)  
-    num_data = 8
-
-    X_r, Y = torch.tensor([]).to(device), torch.tensor([]).to(device)
-
-    for i_z in tqdm(range(num_data), desc = "Data Point: "):
-        MS.update_data()
-        MS.reduce_dimension()
-        y = (LM.A @ MS.X.flatten()).flatten()
-        x_r = MS.X_r.flatten()
-
-        X_r, Y = torch.cat([X_r, x_r.unsqueeze(0)], dim=0), torch.cat([Y,y.unsqueeze(0) ])
-
-    torch.save(X_r,"./data/dataset/X_r.pt")
-    torch.save(Y,"./data/dataset/Y.pt")
+    for IT in range(16, 32):
+        LM.PM.init_dmd()
+        LM.PM.dmd.visualize_patterns()
+        LM.find_transformation()
+        LM.save_matrix(it = IT)
 
 
 
+
+# Approximation of A to form a smaller matrix
+def approximate_A():
+    described = False
+    for IT in range(3,16):
+        LM = LinearizedModel()
+        LM.load_matrix(it=IT, is_original=True)
+        if not described: 
+            print(LM)
+            described=True
+        print(f"A: {IT}")
+        LM.approximate_A()
+        LM.save_matrix(IT, is_original=False)
+        del LM
+
+
+# Stack up the individually calculated A to form the larger matrix
+def stack_up_A(DT = 129):
+    LM = LinearizedModel()
+    stacked_A = torch.tensor([]).to(LM.device)
+    for IT in range(16):
+        LM.load_matrix(IT, is_original=False)
+        stacked_A = torch.cat((LM.A_r, stacked_A))
+    LM.A_r = stacked_A
+    LM.save_matrix(DT, is_original=False)
     
 
 
