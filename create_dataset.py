@@ -1,5 +1,6 @@
 import torch
 import pandas as pd
+from tqdm import tqdm
 from libs.forward_lib.physical_model import PhysicalModel, psf_model
 from libs.forward_lib.linearized_process import LinearizedModel
 from libs.forward_lib.simulate_data import MnistSimulator
@@ -97,7 +98,49 @@ def stack_up_A(DT = 129):
         stacked_A = torch.cat((LM.A_r, stacked_A))
     LM.A_r = stacked_A
     LM.save_matrix(DT, is_original=False)
+
+
+# Create and store objects
+def create_data(IT = 0, batch_size = 2):
+    nx, ny, nz = 128, 128, 128
+    device = 'cuda'
+    MS = MnistSimulator(nx, ny, nz, up_factor = 4)  
+
+    X_r, X = torch.tensor([]).to(device), torch.tensor([]).to(device)
+
+    for b in tqdm(range(batch_size), desc = "Data Point: "):
+        MS.update_data()
+        MS.reduce_dimension()
+        x, x_r  = MS.X.flatten(),  MS.X_r.flatten()
+
+        X_r, X = torch.cat([X_r, x_r.unsqueeze(0)], dim=0), torch.cat([X,x.unsqueeze(0) ])
     
+
+    torch.save(X_r,f"./data/dataset/X_r_{IT}.pt")
+    torch.save(X,f"./data/dataset/X_{IT}.pt")
+
+
+# Calculate Measurement
+def run_process(IT = 0):
+    described = False
+
+    X =  torch.load(f"./data/dataset/X_{IT}.pt").to(LinearizedModel.device)
+
+    for m_it in tqdm(range(16), desc = "Pattern Pair: "):
+        LM = LinearizedModel()
+        LM.load_matrix(m_it)
+        if not described:
+            described = True
+            Y = LM.A@X.t()
+        else:
+            y = LM.A@X.t()
+            Y = torch.cat((Y, y))
+        del LM
+    
+    torch.save(Y.t(),f"./data/dataset/Y_{IT}.pt")
+
+
+
 
 
 
