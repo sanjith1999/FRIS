@@ -63,7 +63,6 @@ def create_A():
     # PhysicalModel.device = 'cpu'
 
     LM = LinearizedModel(nx,ny,nz,n_patterns,dd_factor)
-    LM.init_models()
     print(LM)
     for IT in range(16, 32):
         LM.PM.init_dmd()
@@ -76,13 +75,9 @@ def create_A():
 
 # Approximation of A to form a smaller matrix
 def approximate_A():
-    described = False
-    for IT in range(3,16):
+    for IT in range(0,16):
         LM = LinearizedModel()
         LM.load_matrix(it=IT, is_original=True)
-        if not described: 
-            print(LM)
-            described=True
         print(f"A: {IT}")
         LM.approximate_A()
         LM.save_matrix(IT, is_original=False)

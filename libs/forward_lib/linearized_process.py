@@ -39,18 +39,12 @@ class LinearizedModel:
         desc += f"Computational Device \t\t: {self.device}\n\n"
         return desc
 
-    def init_models(self):    
-        """ 
-        Method: initializing the physical model with necessary parameters & initialize the matrix A with zeros
-        """
-        self.PM = PhysicalModel(self.nx, self.ny, self.nz,self.n_patterns, self.dd_factor, self.n_planes, self.device)
-        self.A = torch.zeros(int(self.nx/self.dd_factor)*int(self.ny/self.dd_factor)*self.n_planes*self.n_patterns, self.nx*self.ny*self.nz).float().to(self.device)
-    
-
     def find_transformation(self):
         """ 
         Method: calculation of A with the help of impulses in X
         """
+        self.PM = PhysicalModel(self.nx, self.ny, self.nz,self.n_patterns, self.dd_factor, self.n_planes, self.device)
+        self.A = torch.zeros(int(self.nx/self.dd_factor)*int(self.ny/self.dd_factor)*self.n_planes*self.n_patterns, self.nx*self.ny*self.nz).float().to(self.device)
         for i_p in range(self.n_patterns):
            self.PM.propagate_dmd(p_no = i_p+1)
            for i_z in range(self.nz):
@@ -134,11 +128,11 @@ class LinearizedModel:
         else:
             self.A_r                                = loaded_data["matrix"].to(self.device)
 
-    def visualize_A(self, original_ = True):
+    def visualize_A(self, is_original = False):
         """ 
         Method: function to visualize the matrices
         """
-        if original_:
+        if is_original:
             A_ = self.A.detach().cpu().numpy()
         else:
             A_ = self.A_r.detach().cpu().numpy()
