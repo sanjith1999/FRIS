@@ -38,12 +38,13 @@ def field_related_calculations():
 
 # Calculate PSF of necessary Dimension and Store it before finding the Transformation A
 def store_PSF():
-    nx, ny, nz = 128, 128, 128
+    nx, ny, nz = 32, 32, 32
+    dx, dy, dz = .32, .32, .32
     NA = .8
     r_index = 1
-    IT = 51                                                         # Let me stick to numbers between 50-100 here
+    IT = 51
     
-    PSF = psf_model(NA=NA, Rindex=r_index, lambda_=PhysicalModel.lambda_ ,dx=PhysicalModel.dx, dy=PhysicalModel.dy, dz=PhysicalModel.dz, Nx=nx, Ny=ny, Nz=nz)
+    PSF = psf_model(NA=NA, Rindex=r_index, lambda_=PhysicalModel.lambda_ ,dx=dx, dy=dy, dz=dz, Nx=nx, Ny=ny, Nz=nz)
     data_to_save = {
         "r_index"   : r_index,
         "NA"        : NA,
@@ -60,12 +61,15 @@ def create_A():
     nx, ny, nz = 128, 128, 128
     n_patterns = 2
     dd_factor = 8
-    # PhysicalModel.device = 'cpu'
+    PSF_IT = 50
+    PhysicalModel.dx, PhysicalModel.dy, PhysicalModel.dz = .08, .08, .08
 
     LM = LinearizedModel(nx,ny,nz,n_patterns,dd_factor)
     print(LM)
-    for IT in range(16, 32):
-        LM.PM.init_dmd()
+    LM.init_models(PSF_IT)
+    for IT in range(2,32):
+        print(f"\n\nITERATION: {IT+1}\n-------------\n")
+        LM.PM.dmd.initialize_patterns(IT)
         LM.PM.dmd.visualize_patterns()
         LM.find_transformation()
         LM.save_matrix(it = IT)
@@ -75,13 +79,21 @@ def create_A():
 
 # Approximation of A to form a smaller matrix
 def approximate_A():
+    nx, ny, nz = 32, 32, 32
+    n_patterns = 2
+    dd_factor = 2
+    PSF_IT = 51
+    PhysicalModel.dx, PhysicalModel.dy, PhysicalModel.dz = .32, .32, .32
+
+    LM = LinearizedModel(nx,ny,nz,n_patterns,dd_factor)
+    LM.init_models(PSF_IT)
+    print(LM)
     for IT in range(0,16):
-        LM = LinearizedModel()
-        LM.load_matrix(it=IT, is_original=True)
-        print(f"A: {IT}")
-        LM.approximate_A()
-        LM.save_matrix(IT, is_original=False)
-        del LM
+        print(f"\n\nITERATION: {IT+1}\n-------------\n")
+        LM.PM.dmd.recover_patterns(IT)
+        LM.PM.dmd.visualize_patterns()
+        LM.find_transformation()
+        LM.save_matrix(it = IT, is_original=False)
 
 
 # Stack up the individually calculated A to form the larger matrix
@@ -90,8 +102,8 @@ def stack_up_A(DT = 129):
     stacked_A = torch.tensor([]).to(LM.device)
     for IT in range(16):
         LM.load_matrix(IT, is_original=False)
-        stacked_A = torch.cat((LM.A_r, stacked_A))
-    LM.A_r = stacked_A
+        stacked_A = torch.cat((LM.A, stacked_A))
+    LM.A = stacked_A
     LM.save_matrix(DT, is_original=False)
 
 
@@ -117,15 +129,15 @@ def create_data(IT = 0, batch_size = 2):
 
 # Calculate Measurement
 def run_process(IT = 0):
-    described = False
+    started = False
 
     X =  torch.load(f"./data/dataset/X_{IT}.pt").to(LinearizedModel.device)
 
     for m_it in tqdm(range(16), desc = "Pattern Pair: "):
         LM = LinearizedModel()
         LM.load_matrix(m_it)
-        if not described:
-            described = True
+        if not started:
+            started = True
             Y = LM.A@X.t()
         else:
             y = LM.A@X.t()

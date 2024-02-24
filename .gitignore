@@ -2,3 +2,4 @@ data/*
 .vscode/*
 *.pyc
 personnel.ipynb
+*.idea
