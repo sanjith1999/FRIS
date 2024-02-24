@@ -1,8 +1,7 @@
 import torch
-from tqdm import tqdm
 import pandas as pd
+from tqdm import tqdm
 from libs.forward_lib.physical_model import PhysicalModel, psf_model
-from libs.efficient_lib.efficient_process import EfficientProcess
 from libs.forward_lib.linearized_process import LinearizedModel
 from libs.forward_lib.simulate_data import MnistSimulator
 
@@ -37,13 +36,15 @@ def field_related_calculations():
         new_df.to_csv(log_path, mode='a', header=False, index=False)
 
 
+# Calculate PSF of necessary Dimension and Store it before finding the Transformation A
 def store_PSF():
-    nx, ny, nz = 128, 128, 128
+    nx, ny, nz = 32, 32, 32
+    dx, dy, dz = .32, .32, .32
     NA = .8
     r_index = 1
-    IT = 51                                                         # Let me stick to numbers between 50-100 here
+    IT = 51
     
-    PSF = psf_model(NA=NA, Rindex=r_index, lambda_=PhysicalModel.lambda_ ,dx=PhysicalModel.dx, dy=PhysicalModel.dy, dz=PhysicalModel.dz, Nx=nx, Ny=ny, Nz=nz)
+    PSF = psf_model(NA=NA, Rindex=r_index, lambda_=PhysicalModel.lambda_ ,dx=dx, dy=dy, dz=dz, Nx=nx, Ny=ny, Nz=nz)
     data_to_save = {
         "r_index"   : r_index,
         "NA"        : NA,
@@ -55,45 +56,98 @@ def store_PSF():
     torch.save(data_to_save, path_to_save)
 
 
-def create_A(IT=11):
+# Calculation of matrix A
+def create_A():
     nx, ny, nz = 128, 128, 128
     n_patterns = 2
     dd_factor = 8
-    # LinearizedModel.device = 'cpu'
+    PSF_IT = 50
+    PhysicalModel.dx, PhysicalModel.dy, PhysicalModel.dz = .08, .08, .08
 
-    # initialize A and store A_r
-    EP = EfficientProcess(nx,ny,nz,n_patterns,dd_factor)
-    print(EP)
-    EP.init_models()
-    EP.save_matrix(it = IT)
-
-
-def dataset_creater(IT = 11):
-    LM = LinearizedModel()
-    LM.load_matrix(it = IT, original_=True)
+    LM = LinearizedModel(nx,ny,nz,n_patterns,dd_factor)
     print(LM)
+    LM.init_models(PSF_IT)
+    for IT in range(2,32):
+        print(f"\n\nITERATION: {IT+1}\n-------------\n")
+        LM.PM.dmd.initialize_patterns(IT)
+        LM.PM.dmd.visualize_patterns()
+        LM.find_transformation()
+        LM.save_matrix(it = IT)
 
-    device = LM.device
-    nx, ny, nz = LM.nx, LM.ny, LM.nz
+
+
+
+# Approximation of A to form a smaller matrix
+def approximate_A():
+    nx, ny, nz = 32, 32, 32
+    n_patterns = 2
+    dd_factor = 2
+    PSF_IT = 51
+    PhysicalModel.dx, PhysicalModel.dy, PhysicalModel.dz = .32, .32, .32
+
+    LM = LinearizedModel(nx,ny,nz,n_patterns,dd_factor)
+    LM.init_models(PSF_IT)
+    print(LM)
+    for IT in range(0,16):
+        print(f"\n\nITERATION: {IT+1}\n-------------\n")
+        LM.PM.dmd.recover_patterns(IT)
+        LM.PM.dmd.visualize_patterns()
+        LM.find_transformation()
+        LM.save_matrix(it = IT, is_original=False)
+
+
+# Stack up the individually calculated A to form the larger matrix
+def stack_up_A(DT = 129):
+    LM = LinearizedModel()
+    stacked_A = torch.tensor([]).to(LM.device)
+    for IT in range(16):
+        LM.load_matrix(IT, is_original=False)
+        stacked_A = torch.cat((LM.A, stacked_A))
+    LM.A = stacked_A
+    LM.save_matrix(DT, is_original=False)
+
+
+# Create and store objects
+def create_data(IT = 0, batch_size = 2):
+    nx, ny, nz = 128, 128, 128
+    device = 'cuda'
     MS = MnistSimulator(nx, ny, nz, up_factor = 4)  
-    num_data = 8
 
-    X_r, Y = torch.tensor([]).to(device), torch.tensor([]).to(device)
+    X_r, X = torch.tensor([]).to(device), torch.tensor([]).to(device)
 
-    for i_z in tqdm(range(num_data), desc = "Data Point: "):
+    for b in tqdm(range(batch_size), desc = "Data Point: "):
         MS.update_data()
         MS.reduce_dimension()
-        y = (LM.A @ MS.X.flatten()).flatten()
-        x_r = MS.X_r.flatten()
+        x, x_r  = MS.X.flatten(),  MS.X_r.flatten()
 
-        X_r, Y = torch.cat([X_r, x_r.unsqueeze(0)], dim=0), torch.cat([Y,y.unsqueeze(0) ])
-
-    torch.save(X_r,"./data/dataset/X_r.pt")
-    torch.save(Y,"./data/dataset/Y.pt")
-
-
-
+        X_r, X = torch.cat([X_r, x_r.unsqueeze(0)], dim=0), torch.cat([X,x.unsqueeze(0) ])
     
+
+    torch.save(X_r,f"./data/dataset/X_r_{IT}.pt")
+    torch.save(X,f"./data/dataset/X_{IT}.pt")
+
+
+# Calculate Measurement
+def run_process(IT = 0):
+    started = False
+
+    X =  torch.load(f"./data/dataset/X_{IT}.pt").to(LinearizedModel.device)
+
+    for m_it in tqdm(range(16), desc = "Pattern Pair: "):
+        LM = LinearizedModel()
+        LM.load_matrix(m_it)
+        if not started:
+            started = True
+            Y = LM.A@X.t()
+        else:
+            y = LM.A@X.t()
+            Y = torch.cat((Y, y))
+        del LM
+    
+    torch.save(Y.t(),f"./data/dataset/Y_{IT}.pt")
+
+
+
 
 
 

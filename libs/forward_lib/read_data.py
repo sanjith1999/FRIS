@@ -18,7 +18,7 @@ class ReadData:
     # class varibles
     device = LinearizedModel.device
     dx, dy, dz = PhysicalModel.dx, PhysicalModel.dy, PhysicalModel.dz
-    v_nx, v_ny, v_nz = LinearizedModel.v_nx, LinearizedModel.v_ny, LinearizedModel.v_nz
+    v_nx, v_ny, v_nz = 4, 4, 4
 
     def __init__(self, nx, ny, nz, up_factor =1):
         self.raw_data_type = "Nothing"   

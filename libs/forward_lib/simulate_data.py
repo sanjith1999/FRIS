@@ -13,7 +13,7 @@ class MnistSimulator:
     device = LinearizedModel.device
     int_weight = .3
     mx, my, mz = 28, 28, 28
-    v_nx, v_ny, v_nz = LinearizedModel.v_nx, LinearizedModel.v_ny, LinearizedModel.v_nz
+    v_nx, v_ny, v_nz = 4, 4, 4
 
     def __init__(self, nx, ny, nz, n_bodies = 1, up_factor = 1):
         self.nx, self.ny, self.nz = nx, ny, nz
@@ -77,9 +77,13 @@ class MnistSimulator:
     def normalize(self, object):
         return (object - object.min())/(object.max()-object.min())
     
-    def visualize_object(self, ele_ang=10, azim_ang = 40, vis_planes = False):
+    def visualize_object(self, ele_ang=10, azim_ang = 40, vis_planes = False, is_original = True):
         if vis_planes:
-            vs.show_planes(self.X[0].detach().cpu(),title="Object" ,N_z=self.nz)
+            if is_original:
+                vs.show_planes(self.X[0].detach().cpu(),title="Object" ,N_z=self.nz)
+            else:
+                vs.show_planes(self.X_r[0].detach().cpu(),title="Object" ,N_z=self.nz)
+
         else:
             vs.vis_3d(self.X[0].detach().cpu(), elev_ang=ele_ang, azim_ang=azim_ang)
 
