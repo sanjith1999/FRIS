@@ -11,7 +11,7 @@ from libs.forward_lib.physical_model import PhysicalModel
 
 class MnistSimulator:
     device = LinearizedModel.device
-    int_weight = .3
+    int_weight = .1
     mx, my, mz = 28, 28, 28
     v_nx, v_ny, v_nz = 4, 4, 4
 
@@ -37,7 +37,11 @@ class MnistSimulator:
     def update_data(self):
         self.X[:, :, :, :] = 0
         for i in range(self.n_bodies):
-            ux, uy , uz  = self.mx*self.up_factor, self.my*self.up_factor, self.mz*self.up_factor
+            try:
+                ux, uy , uz  = self.mx*self.up_factor[1], self.my*self.up_factor[2], self.mz*self.up_factor[0]
+            except:
+                ux, uy , uz  = self.mx*self.up_factor, self.my*self.up_factor, self.mz*self.up_factor
+                
             sx, sy, sz = randint(0, self.nx-ux), randint(0, self.ny-uy), randint(0, self.nz-uz)
             self.X[0, sz:sz+uz, sx:sx+ux, sy:sy+uy] = self.uSampler(self.augmented_mnist_body().unsqueeze(0).unsqueeze(0)).squeeze()
         
@@ -49,11 +53,11 @@ class MnistSimulator:
 
     def augmented_mnist_body(self):
         body_id = randint(0, self.mnist_limit)
-        angle_x, angle_y, angle_z = randint(-90, 90), randint(-90, 90), randint(-90, 90)
+        angle_x, angle_y, angle_z = 0,0, randint(-90, 90)               # No rotation around X, Y for making the task easy
 
         body = self.transform(self.mnist_trainset[body_id][0]).to(self.device)
         s_body = body.repeat(28, 1, 1)
-        s_body[0:4, :, :] , s_body[24:28, :, :] = 0, 0
+        s_body[0:2, :, :] , s_body[26:28, :, :] = 0, 0
         r_body = self.rotate_3d_image(s_body, angle_x, angle_y, angle_z)
         smooth_body = self.normalize((r_body**self.int_weight)*self.intensity_smoother())
         return smooth_body
@@ -82,7 +86,7 @@ class MnistSimulator:
             if is_original:
                 vs.show_planes(self.X[0].detach().cpu(),title="Object" ,N_z=self.nz)
             else:
-                vs.show_planes(self.X_r[0].detach().cpu(),title="Object" ,N_z=self.nz)
+                vs.show_planes(self.X_r[0].detach().cpu(),title="Pooled-Object" ,N_z=int(self.nz/self.v_nz))
 
         else:
             vs.vis_3d(self.X[0].detach().cpu(), elev_ang=ele_ang, azim_ang=azim_ang)

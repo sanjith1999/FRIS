@@ -149,7 +149,6 @@ class dmd_patterns:
         self.nx, self.ny = nx, ny
         self.n_patterns = n_patterns
         self.device = device
-        self.ht_2D_list = []
 
     def initialize_dmd(self):
         """
@@ -163,6 +162,7 @@ class dmd_patterns:
         """
         Method: recover patterns from the bases that used to create (IT) set of patterns
         """
+        self.ht_2D_list = []
         base_list = torch.load(f"./data/matrices/DMD/base_{IT}.pt")
         for key in base_list.keys():
             ht_2D = (base_list[key]).float().to(self.device)
@@ -175,6 +175,7 @@ class dmd_patterns:
         """
         Method: form a list of patterns that contain m random initializations
         """
+        self.ht_2D_list = []
         data_to_save = {}
         path_to_save = f"./data/matrices/DMD/base_{IT}.pt"
         for p in range(self.n_patterns // 2):

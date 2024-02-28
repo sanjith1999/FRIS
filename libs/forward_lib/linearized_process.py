@@ -45,12 +45,12 @@ class LinearizedModel:
             self.PM.load_psf(LOAD_IT)
         else:
             self.PM.init_psf()
+        self.A = torch.zeros(int(self.nx / self.dd_factor) * int(self.ny / self.dd_factor) * self.n_planes * self.n_patterns, self.nx * self.ny * self.nz).float().to(self.device)
 
     def find_transformation(self):
         """
         Method: calculation of A with the help of impulses in X
         """
-        self.A = torch.zeros(int(self.nx / self.dd_factor) * int(self.ny / self.dd_factor) * self.n_planes * self.n_patterns, self.nx * self.ny * self.nz).float().to(self.device)
         for i_p in range(self.n_patterns):
             self.PM.propagate_dmd(p_no=i_p + 1)
             for i_z in tqdm(range(self.nz), desc=f"Pattern: {i_p + 1}/{self.n_patterns}\t Nz: "):
