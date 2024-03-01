@@ -61,18 +61,23 @@ def create_A():
     nx, ny, nz = 128, 128, 32
     n_patterns = 2
     dd_factor = 8
-    PSF_IT = 50
+    PSF_IT = -1
     PhysicalModel.dx, PhysicalModel.dy, PhysicalModel.dz = .25, .25, .25
+    PhysicalModel.ep_dx, PhysicalModel.ep_dy = 2., 2.
 
     LM = LinearizedModel(nx,ny,nz,n_patterns,dd_factor)
-    print(LM)
     LM.init_models(PSF_IT)
-    for IT in range(0, 32):
+    for IT in range(100, 108):
         print(f"\n\nITERATION: {IT+1}\n-------------\n")
         LM.PM.dmd.initialize_patterns(IT)
         LM.PM.dmd.visualize_patterns()
+        print(LM)
         LM.find_transformation()
         LM.save_matrix(it = IT)
+        LM.prepare_approximate(4,4,4)
+        print("\n", LM)
+        LM.approximate_transformation()
+        LM.save_matrix(it = IT, is_original=False)
 
 
 
