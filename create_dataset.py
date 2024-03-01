@@ -61,14 +61,16 @@ def create_A():
     nx, ny, nz = 128, 128, 32
     n_patterns = 2
     dd_factor = 8
-    PSF_IT = -1
+    PSF_IT = 50
     PhysicalModel.dx, PhysicalModel.dy, PhysicalModel.dz = .25, .25, .25
     PhysicalModel.ep_dx, PhysicalModel.ep_dy = 2., 2.
 
     LM = LinearizedModel(nx,ny,nz,n_patterns,dd_factor)
-    LM.init_models(PSF_IT)
-    for IT in range(100, 108):
+    for IT in range(1, 8):
         print(f"\n\nITERATION: {IT+1}\n-------------\n")
+        LM.nx, LM.ny, LM.nz, LM.n_patterns, LM.dd_factor = nx, ny, nz, n_patterns, dd_factor
+        LM.dx, LM.dy, LM.dz = PhysicalModel.dx, PhysicalModel.dy, PhysicalModel.dz
+        LM.init_models(PSF_IT)
         LM.PM.dmd.initialize_patterns(IT)
         LM.PM.dmd.visualize_patterns()
         print(LM)
@@ -108,7 +110,7 @@ def stack_up_A(DT = 130):
     stacked_A = torch.tensor([]).to(LM.device)
     for IT in range(int(n_p/2)):
         LM.load_matrix(IT, is_original=False)
-        stacked_A = torch.cat((LM.A, stacked_A))
+        stacked_A = torch.cat((stacked_A, LM.A))
     LM.A = stacked_A
     LM.n_patterns = n_p
     LM.save_matrix(DT, is_original=False)
@@ -118,16 +120,11 @@ def stack_up_A(DT = 130):
 def create_data(IT = 0, batch_size = 2):
     nx, ny, nz = 128, 128, 32
     device = 'cuda'
-
-    MS = [MnistSimulator(int(nx/2), int(ny/2), nz, up_factor = 1) for i in range(4)]  
-    F_MS = MnistSimulator(nx, ny, nz)
-
-
+    F_MS = MnistSimulator(nx, ny, nz, up_factor=(1,4,4))
     X_r, X = torch.tensor([]).to(device), torch.tensor([]).to(device)
 
-    for b in tqdm(range(batch_size), desc = f"Data Point {IT}: "):
-        for ms in MS: ms.update_data()
-        F_MS.X = torch.cat((torch.cat((MS[0].X, MS[1].X), dim=-2), torch.cat((MS[2].X, MS[3].X), dim=-2)), dim=-1)
+    for b in tqdm(range(batch_size), desc = f"Data Point {IT:03}: "):
+        F_MS.update_data()
         F_MS.reduce_dimension()
         x, x_r  = F_MS.X.flatten(),  F_MS.X_r.flatten()
 
@@ -141,20 +138,20 @@ def create_data(IT = 0, batch_size = 2):
 # Calculate Measurement
 def run_process():
     for m_it in range(8):
+        LM = LinearizedModel()
+        LM.load_matrix(m_it)
         for IT in tqdm(range(32), desc = f"Pattern Pair: {m_it+1:02}\t\tData Point: "):
-            LM = LinearizedModel()
-            LM.load_matrix(m_it)
             if m_it ==0:
                 X =  torch.load(f"./data/dataset/h_object/X_{IT}.pt").to(LM.device)
-                Y = LM.A@X.t()/256
+                Y = LM.A@X.t()
                 torch.save(Y.t(),f"./data/dataset/measurement/Y_{IT}.pt")
             else:
                 X =  torch.load(f"./data/dataset/h_object/X_{IT}.pt").to(LM.device)
                 Y = torch.load(f"./data/dataset/measurement/Y_{IT}.pt").to(LM.device).t()
-                y = LM.A@X.t()/256
+                y = LM.A@X.t()
                 Y = torch.cat((Y, y))
                 torch.save(Y.t(),f"./data/dataset/measurement/Y_{IT}.pt")
-            del LM
+        del LM
 
 
 
