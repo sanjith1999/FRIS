@@ -39,18 +39,18 @@ class LinearizedModel:
         desc += f"Computational Device \t\t: {self.device}\n\n"
         return desc
 
-    def init_models(self, LOAD_IT = -1):
+    def init_models(self, LOAD_IT=-1):
         self.PM = PhysicalModel(self.nx, self.ny, self.nz, self.n_patterns, self.dd_factor, self.n_planes, self.device)
         if LOAD_IT >= 0:
             self.PM.load_psf(LOAD_IT)
         else:
             self.PM.init_psf()
+        self.A = torch.zeros(int(self.nx / self.dd_factor) * int(self.ny / self.dd_factor) * self.n_planes * self.n_patterns, self.nx * self.ny * self.nz).float().to(self.device)
 
     def find_transformation(self):
         """
         Method: calculation of A with the help of impulses in X
         """
-        self.A = torch.zeros(int(self.nx / self.dd_factor) * int(self.ny / self.dd_factor) * self.n_planes * self.n_patterns, self.nx * self.ny * self.nz).float().to(self.device)
         for i_p in range(self.n_patterns):
             self.PM.propagate_dmd(p_no=i_p + 1)
             for i_z in tqdm(range(self.nz), desc=f"Pattern: {i_p + 1}/{self.n_patterns}\t Nz: "):
@@ -58,6 +58,30 @@ class LinearizedModel:
                     for i_y in range(self.ny):
                         self.A[i_p * self.measure_pp:i_p * self.measure_pp + self.measure_pp, i_z * self.ny * self.nx + i_x * self.ny + i_y] = self.PM.propagate_impulse((i_x, i_y, i_z)).flatten()
         return "SUCCESS...!"
+
+    def prepare_approximate(self, v_nx, v_ny, v_nz):
+        """
+        Method: prepare the model for approximation,
+        """
+        self.v_nx, self.v_ny, self.v_nz = v_nx, v_ny, v_nz
+        self.dx, self.dy, self.dz = self.dx * v_nx, self.dy * v_ny, self.dz * v_nz
+        self.nx, self.ny, self.nz = int(self.nx / v_nx), int(self.ny / v_ny), int(self.nz / v_nz)
+        self.dd_factor = int(self.dd_factor / v_nx)
+        self.A = torch.zeros(int(self.nx / self.dd_factor) * int(self.ny / self.dd_factor) * self.n_planes * self.n_patterns, self.nx * self.ny * self.nz).float().to(self.device)
+
+    def approximate_transformation(self):
+        """
+        Method: approximation of A via propagating patch impulses,
+        """
+        Ip = torch.zeros(1, self.nz * self.v_nz, self.nx * self.v_nx, self.ny * self.v_ny).to(self.device)
+        for i_p in range(self.n_patterns):
+            self.PM.propagate_dmd(p_no=i_p + 1)
+            for i_z in tqdm(range(self.nz), desc=f"A-Pattern: {i_p + 1}/{self.n_patterns}\t Nz: "):
+                for i_x in range(self.nx):
+                    for i_y in range(self.ny):
+                        Ip[0, i_z * self.v_nz:(i_z + 1) * self.v_nz, i_x * self.v_nx:(i_x + 1) * self.v_nx, i_y * self.v_ny:(i_y + 1) * self.v_ny] = 1
+                        self.A[i_p * self.measure_pp:(i_p + 1) * self.measure_pp, i_z * self.ny * self.nx + i_x * self.ny + i_y] = self.PM.propagate_patch(Ip).flatten()
+                        Ip[0, i_z * self.v_nz:(i_z + 1) * self.v_nz, i_x * self.v_nx:(i_x + 1) * self.v_nx, i_y * self.v_ny:(i_y + 1) * self.v_ny] = 0
 
     def save_matrix(self, it=100, is_original=True):
         """ 

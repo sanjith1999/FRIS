@@ -18,7 +18,7 @@ class PhysicalModel:
     NA = .8
     r_index = 1
     dx, dy, dz = 0.08, 0.08, 0.08  # um
-    ep_dx, ep_dy = .64, .64
+    ep_dx, ep_dy = 0.64, 0.64
     w = 2
 
     def __init__(self, nx, ny, nz, n_patterns, dd_factor=1, n_planes=1, device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
@@ -71,7 +71,9 @@ class PhysicalModel:
         self.H2 = H1.abs().square().sum(dim=0).sqrt()
 
     def propagate_impulse(self, cor=(0, 0, 0)):
-
+        """
+        Method: Propagating an impulse at certain location of the object to the detector
+        """
         ix, iy, iz = cor
         cx, cy = self.nx // 2, self.ny // 2
         det_Y = torch.zeros(self.nx, self.ny).to(self.device).float()
@@ -84,6 +86,17 @@ class PhysicalModel:
             det_Y[ix - l_ix:ix + r_ix, iy - l_iy: iy + r_iy] = self.H2[iz, ix, iy] * self.emPSF_3D[0, i_iz, cx - l_ix: cx + r_ix, cy - l_iy:cy + r_iy]
         scale_factor = (1 / self.dd_factor, 1 / self.dd_factor)
         det_Y = torch.nn.functional.interpolate(det_Y.unsqueeze(0).unsqueeze(0), scale_factor=scale_factor, mode='area').squeeze()
+        return det_Y
+
+    def propagate_patch(self, X):
+        """
+        Method: Propagating a patch to detector
+        """
+        H3 = X * self.H2
+        Y = conv_3D(self.emPSF_3D, H3, self.w).abs()[0]  # field around the detector
+        det_Y = Y[self.m_planes, :, :]
+        scale_factor = (1, 1 / self.dd_factor, 1 / self.dd_factor) if len(det_Y.shape) == 3 else (1 / self.dd_factor, 1 / self.dd_factor)
+        det_Y = nn.functional.interpolate(det_Y.unsqueeze(0).unsqueeze(0), scale_factor=scale_factor, mode='area').squeeze()
         return det_Y
 
     def propagate_object(self, X, p_no=1, verbose=0):
@@ -101,7 +114,6 @@ class PhysicalModel:
 
         H3 = X * H2
         Y = conv_3D(self.emPSF_3D, H3, self.w).abs()[0]  # field around the detector
-        self.Y = Y
         det_Y = Y[self.m_planes, :, :]
         scale_factor = (1, 1 / self.dd_factor, 1 / self.dd_factor) if len(det_Y.shape) == 3 else (1 / self.dd_factor, 1 / self.dd_factor)
         det_Y = nn.functional.interpolate(det_Y.unsqueeze(0).unsqueeze(0), scale_factor=scale_factor, mode='area').squeeze()
@@ -149,7 +161,6 @@ class dmd_patterns:
         self.nx, self.ny = nx, ny
         self.n_patterns = n_patterns
         self.device = device
-        self.ht_2D_list = []
 
     def initialize_dmd(self):
         """
@@ -163,6 +174,7 @@ class dmd_patterns:
         """
         Method: recover patterns from the bases that used to create (IT) set of patterns
         """
+        self.ht_2D_list = []
         base_list = torch.load(f"./data/matrices/DMD/base_{IT}.pt")
         for key in base_list.keys():
             ht_2D = (base_list[key]).float().to(self.device)
@@ -175,6 +187,7 @@ class dmd_patterns:
         """
         Method: form a list of patterns that contain m random initializations
         """
+        self.ht_2D_list = []
         data_to_save = {}
         path_to_save = f"./data/matrices/DMD/base_{IT}.pt"
         for p in range(self.n_patterns // 2):
