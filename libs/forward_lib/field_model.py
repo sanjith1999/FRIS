@@ -25,7 +25,8 @@ class FieldModel:
         return desc
 
     def propagate_field(self):
-        self.PM.init_models()
+        self.PM.dmd.initialize_patterns()
+        self.PM.init_psf()
         self.PM.propagate_dmd()
         self.H2 = self.PM.H2.to(self.device)
 
@@ -56,7 +57,7 @@ class FieldModel:
             "dimensions": [self.nx, self.ny, self.nz],
             "p_dimensions": [self.PM.ep_dx, self.PM.ep_dy],
             "field": self.H2,
-            "DMD": self.PM.dmd.ht_2D_list[0]
+            "DMD": self.PM.dmd.ht_2D_list
         }
         torch.save(data_to_save, path)
         log_path = f"./data/matrices/log/H_log.csv"
@@ -75,7 +76,7 @@ class FieldModel:
         [self.nx, self.ny, self.nz] = loaded_data['dimensions']
         [self.PM.ep_dx, self.PM.ep_dy] = loaded_data['p_dimensions']
         self.H2 = loaded_data['field']
-        self.PM.dmd.ht_2D_list[0] = loaded_data['DMD']
+        self.PM.dmd.ht_2D_list = loaded_data['DMD']
 
     def visualize_at_separation(self, separation=1):
         """ 

@@ -161,6 +161,7 @@ class dmd_patterns:
         self.nx, self.ny = nx, ny
         self.n_patterns = n_patterns
         self.device = device
+        self.ht_2D_list = None
 
     def initialize_dmd(self):
         """
