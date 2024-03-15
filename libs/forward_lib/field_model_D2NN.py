@@ -1,4 +1,4 @@
-from libs.forward_lib.physical_model import PhysicalModel
+from libs.forward_lib.physical_model_D2NN import PhysicalModel
 import torch
 from libs.forward_lib.visualizer import show_planes_z, visualize_SSIM
 
@@ -20,18 +20,14 @@ class FieldModel:
         desc += f"NA\t\t\t\t: {self.PM.NA}\n"
         desc += f"Space Dimension \t\t: {self.nx * self.PM.dx}um × {self.ny * self.PM.dy}um × {self.nz * self.PM.dz}um\n"
         desc += f"voxel Size \t\t\t: {self.PM.dx}um × {self.PM.dy}um × {self.PM.dz}um\n"
-        desc += f"Pattern Dimension \t\t: {self.PM.ep_dx}um × {self.PM.ep_dy}um \n"
         desc += f"Computational Device \t\t: {self.device}"
         return desc
 
     def propagate_field(self):
+        # self.PM.init_models()
         self.PM.init_psf()
-        self.PM.propagate_dmd()
-        self.H2 = self.PM.H2.to(self.device)
-
-    def propagate_field_AS(self):
-        self.PM.init_psf()
-        self.PM.propagate_dmd_AS()
+        self.PM.D2NN.initialize_D2NN_fields()
+        self.PM.propagate_D2NN()
         self.H2 = self.PM.H2.to(self.device)
 
     def correlation_measure(self, separation=1):
@@ -59,13 +55,12 @@ class FieldModel:
             "NA": self.PM.NA,
             "voxel_size": [self.PM.dx, self.PM.dy, self.PM.dz],
             "dimensions": [self.nx, self.ny, self.nz],
-            "p_dimensions": [self.PM.ep_dx, self.PM.ep_dy],
             "field": self.H2,
-            "DMD": self.PM.dmd.ht_2D_list[0]
+            "D2NN": self.PM.D2NN.ht_2D_list[0]
         }
         torch.save(data_to_save, path)
         log_path = f"./data/matrices/log/H_log.csv"
-        log_message = f"{it, self.PM.NA, self.PM.dx, self.PM.dy, self.PM.dz, self.nx, self.ny, self.nz, self.PM.ep_dx, self.PM.ep_dy}"
+        log_message = f"{it, self.PM.NA, self.PM.dx, self.PM.dy, self.PM.dz, self.nx, self.ny, self.nz}"
         with open(log_path, "a") as log_file:
             log_file.write(log_message + "\n")
 
@@ -78,9 +73,8 @@ class FieldModel:
         self.PM.NA = loaded_data['NA']
         [self.PM.dx, self.PM.dy, self.PM.dz] = loaded_data['voxel_size']
         [self.nx, self.ny, self.nz] = loaded_data['dimensions']
-        [self.PM.ep_dx, self.PM.ep_dy] = loaded_data['p_dimensions']
         self.H2 = loaded_data['field']
-        self.PM.dmd.ht_2D_list[0] = loaded_data['DMD']
+        self.PM.D2NN.ht_2D_list[0] = loaded_data['D2NN']
 
     def visualize_at_separation(self, separation=1):
         """ 

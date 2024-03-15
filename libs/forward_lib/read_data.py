@@ -15,7 +15,7 @@ class ReadData:
     Class: handle the reading data functionality from stored data values
     """
 
-    # class variables
+    # class varibles
     device = LinearizedModel.device
     dx, dy, dz = PhysicalModel.dx, PhysicalModel.dy, PhysicalModel.dz
     v_nx, v_ny, v_nz = 4, 4, 4

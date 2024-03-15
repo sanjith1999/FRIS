@@ -3,7 +3,9 @@ import numpy as np
 import scipy.special
 from torch import nn
 import libs.forward_lib.visualizer as vs
+import copy
 import libs.forward_lib.angular_spectrum as AS
+from libs.forward_lib.modules.d2nn_models_new import *
 
 
 # noinspection PyAttributeOutsideInit
@@ -11,7 +13,7 @@ class PhysicalModel:
     """
      Class: represents the whole forward process of a single photon microscopy
 
-     self.init_psf(), self.dmd.initialize_patterns() should be called to initialize patterns and PSF
+     self.init_psf(), self.D2NN.initialize_fields() should be called to initialize patterns and PSF
     """
 
     # Class Variables
@@ -19,7 +21,6 @@ class PhysicalModel:
     NA = .8
     r_index = 1
     dx, dy, dz = 0.08, 0.08, 0.08  # um
-    ep_dx, ep_dy = 0.64, 0.64
     w = 2
 
     def __init__(self, nx, ny, nz, n_patterns, dd_factor=1, n_planes=1, device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
@@ -29,15 +30,14 @@ class PhysicalModel:
         self.n_planes = n_planes
         self.m_planes = [(i * nz) // (n_planes + 1) for i in range(1, n_planes + 1)]
         self.device = device
-        self.dmd = dmd_patterns(self.ep_dx, self.ep_dy, self.dx, self.dy, self.nx, self.ny, self.n_patterns, self.device)
+        self.D2NN = D2NN_patterns(self.nx, self.ny, self.dx, self.dy, self.n_patterns, self.device)
 
     def __str__(self):
         desc = ""
         desc += "Forward Model Specifications\n----------------------------------------------\n"
         desc += f"Space Dimension \t\t: {self.nx * self.dx}um × {self.ny * self.dy}um × {self.nz * self.dz}um\n"
         desc += f"voxel Size \t\t\t: {self.dx}um × {self.dy}um × {self.dz}um\n"
-        desc += f"DMD Patch Size \t\t: {self.ep_dx}um × {self.ep_dy}um\n"
-        desc += f"DMD Patterns \t\t\t: {self.n_patterns}\n"
+        desc += f"D2NN Patterns \t\t\t: {self.n_patterns}\n"
         desc += f"Measurement Plane\t\t: {self.m_planes}\n"
         desc += f"Detector Pool size \t\t: {self.dd_factor}×{self.dd_factor}\n"
         desc += f"Computational Device \t\t: {self.device}"
@@ -59,28 +59,16 @@ class PhysicalModel:
         self.exPSF_3D = psf().detach().permute(0, 3, 1, 2)
         self.emPSF_3D = self.exPSF_3D.abs().square().sum(dim=0).sqrt().unsqueeze(dim=0)
 
-    def propagate_dmd(self, p_no=1):
+    def propagate_D2NN(self, p_no=1):
         """
-        Method: forwarding DMD pattern to object space
-        """
-        ht_3D = torch.zeros(1, self.nz, self.nx, self.ny).float().to(self.device)  # DMD in 3D
-        if p_no > self.dmd.n_patterns:
-            print("Not enough DMD patterns...!")
-        ht_3D[:, self.nz // 2] = self.dmd.ht_2D_list[p_no - 1]
-
-        H1 = conv_3D(self.exPSF_3D, ht_3D, w=self.w)
-        self.H2 = H1.abs().square().sum(dim=0).sqrt()
-
-    def propagate_dmd_AS(self, p_no=1):
-        """
-        Method: forwarding DMD pattern to object space
+        Method: forwarding D2NN field to object space
         """
         aNs = AS.d2nnASwWindow_layer(self.nx, self.ny, self.dx, self.dy, self.dz, self.lambda_, window_size=8)
         H1 = torch.zeros(self.nz, self.nx, self.ny, dtype=torch.complex64)
 
         for i in range(-self.nz//2, self.nz//2):
             aNs.find_transfer_function(self.dz*i, mask_factor_=self.NA**2)
-            output_field = aNs.forward(self.dmd.ht_2D_list[p_no-1].cpu().unsqueeze(0))
+            output_field = aNs.forward(self.D2NN.ht_2D_list[p_no-1].cpu().unsqueeze(0))
             H1[i+self.nz//2] = output_field.detach()
 
         self.H2 = torch.abs(H1)
@@ -118,46 +106,6 @@ class PhysicalModel:
         """
         Method: forward process on an object
         """
-
-        ht_3D = torch.zeros(1, self.nz, self.nx, self.ny).float().to(self.device)  # DMD in 3D
-        if p_no > self.dmd.n_patterns:
-            print("Not enough DMD patterns...!")
-        ht_3D[:, self.nz // 2] = self.dmd.ht_2D_list[p_no - 1]
-
-        H1 = conv_3D(self.exPSF_3D, ht_3D, self.w)
-        H2 = H1.abs().square().sum(dim=0).sqrt()  # field in the object space
-
-        H3 = X * H2
-        Y = conv_3D(self.emPSF_3D, H3, self.w).abs()[0]  # field around the detector
-        det_Y = Y[self.m_planes, :, :]
-        scale_factor = (1, 1 / self.dd_factor, 1 / self.dd_factor) if len(det_Y.shape) == 3 else (1 / self.dd_factor, 1 / self.dd_factor)
-        det_Y = nn.functional.interpolate(det_Y.unsqueeze(0).unsqueeze(0), scale_factor=scale_factor, mode='area').squeeze()
-
-        # Visualizing Stuff
-        if verbose > 0:
-            det_R = det_Y.detach().cpu().numpy()
-            if verbose > 1:
-                if verbose > 2:
-                    coherent_out = H2.detach().cpu().numpy()
-                    vs.show_planes(coherent_out, title=f'H2', N_z=self.nz)
-                X_D = X[0].detach().cpu().numpy()
-                vs.show_planes(X_D, title=f"Object", N_z=self.nz)
-                Y_D = Y.detach().cpu().numpy()
-                vs.show_planes(Y_D, title=f'Y', N_z=self.nz)
-            if self.n_planes == 1:
-                vs.show_image(det_R, f"M-Plane: {self.m_planes[0]}", (3, 3))
-            else:
-                vs.show_images(images=[det_r for det_r in det_R], titles=[f"M-Plane: {i}" for i in self.m_planes], figsize=(3 * self.n_planes, 3), cols=self.n_planes)
-        if verbose > 3:
-            print(f"Shapes of vectors\n exPSF: {self.exPSF_3D.shape}\n H1: {H1.shape}\n H2: {H2.shape}\n emPSF: {self.emPSF_3D.shape}\n H3: {H3.shape}")
-
-        return det_Y
-    
-    def propagate_object_AS(self, X, p_no=1, verbose=0):
-        """
-        Method: forward process on an object
-        """
-
         aNs = AS.d2nnASwWindow_layer(self.nx, self.ny, self.dx, self.dy, self.dz, self.lambda_, window_size=8)
         H1 = torch.zeros(self.nz, self.nx, self.ny, dtype=torch.complex64)
         for i in range(-self.nz//2, self.nz//2):
@@ -194,7 +142,7 @@ class PhysicalModel:
 
     def extended_propagation(self, specimen, verbose=False):
         """
-        Method: Perform the forward process operation for multiple DMD patterns
+        Method: Perform the forward process operation for multiple D2NN patterns
         """
         Y = torch.tensor([]).to(self.device)
         for p in range(1, self.n_patterns + 1):
@@ -202,79 +150,189 @@ class PhysicalModel:
             Yi_flatten = Yi.flatten()
             Y = torch.cat((Y, Yi_flatten), dim=0)
         return Y
-    
-    def extended_propagation_AS(self, specimen, verbose=False):
-        """
-        Method: Perform the forward process operation for multiple DMD patterns
-        """
-        Y = torch.tensor([]).to(self.device)
-        for p in range(1, self.n_patterns + 1):
-            Yi = self.propagate_object_AS(specimen, p_no=p, verbose=verbose)
-            Yi_flatten = Yi.flatten()
-            Y = torch.cat((Y, Yi_flatten), dim=0)
-        return Y
+
 
 
 # noinspection PyAttributeOutsideInit
-class dmd_patterns:
+class D2NN_patterns:
     """
-    Class: Store multiple DMD patterns
+    Class: Store multiple D2NN fields
     """
 
-    def __init__(self, ep_dx, ep_dy, dx, dy, nx, ny, n_patterns, device):
-        self.ep_dx, self.ep_dy = max(round(ep_dx / dx), 1), max(round(ep_dy / dy), 1)
+    def __init__(self, nx, ny, dx, dy, n_patterns, device):
         self.nx, self.ny = nx, ny
+        self.dx, self.dy = dx, dy
         self.n_patterns = n_patterns
         self.device = device
+        self.D2NN_model = None
 
-    def initialize_dmd(self):
-        """
-        Method: randomly initialize a dmd patches -> form dimension matched patterns
-        """
-        ht_2D = (torch.randn(self.nx // self.ep_dx + 1, self.ny // self.ep_dy + 1) > 0).float().to(self.device)
-        Ht_2D = ht_2D.repeat_interleave(self.ep_dx, dim=0).repeat_interleave(self.ep_dy, dim=1)[:self.nx, :self.ny]
-        return Ht_2D, ht_2D
+        self.cfg = {
+            'device': self.device,
+            'model': 'd2nnASwWindow',
+            'RI_Gel': 1,
+            'lambda_': PhysicalModel.lambda_ * 1e-6,
+            'n_layers': 2,
+            'delta_z': 3.3e-06,
+            'in_dist': 3.3e-06,
+            'out_dist': 5.9e-06,   # Change this will set the distance between output and last layer
+            'neuron_size': PhysicalModel.lambda_ * 1e-6 / 2,
+            
+            'img_size': self.nx,
+            'shrink_factor': 1,
 
-    def recover_patterns(self, IT=-1):
-        """
-        Method: recover patterns from the bases that used to create (IT) set of patterns
-        """
-        self.ht_2D_list = []
-        base_list = torch.load(f"./data/matrices/DMD/base_{IT}.pt")
-        for key in base_list.keys():
-            ht_2D = (base_list[key]).float().to(self.device)
-            Ht_2D = ht_2D.repeat_interleave(self.ep_dx, dim=0).repeat_interleave(self.ep_dy, dim=1)[:self.nx, :self.ny]
-            self.ht_2D_list.append(Ht_2D)
-            if key.split("_")[0] == 'pp':
-                self.ht_2D_list.append(1 - Ht_2D)
+            'torch_seed': 5, # changing this will change the random weights of the D2NN
+            'learn_type': 'phase',
 
-    def initialize_patterns(self, IT=-1):
+            'quant_after': -1,
+            'schedule_start': 1,
+            'schedule_increment': 0.05,
+            'schedule_every': 1,
+            
+            'full_precision_and_range': True,
+            'unwrapped_phase': True,
+            'pretrained': False,
+            'no_quant': False,
+            'mlsq': False,
+            'dsq': False,
+            'gs_quant': False,
+            'hard_quant': False,
+            'inq': False,
+            'mlsq_inq': False,
+            'fake_quant': False,
+            
+            'quant_levels': [2, 7],
+            'lower_bound': 0,
+            'upper_bounds': [0.5340707511102649, 3.267256359733385],
+            'learn_u': [False, False],
+            'alpha': 0,
+            'learn_schedule': False,
+            'mlsq_reg': [0.01, 0.1],
+            'reg_schedule': ['pow2', 5],
+            
+            'dsq_alpha': 0.2,
+            'dsq_factor': 10,
+            'dsq_regularize': [0.01, 0.5],
+            'dsq_temp_const': False,
+            'dsq_temp_learn': True,
+            'int_ramp': 'no',
+            
+            'window_size': 4,
+            'biasOnoise': 0,
+            'energy_type': 'passive',
+            'samples': 1,
+            'local_norm_amp': False,
+
+            'photon_count': 1,
+
+            'fab_noise': 0,
+            'dz_noise': 0,
+            'dx_noise': 0,
+            'step_noise': 0,
+            'rigid_structure': False,
+            'sf_noise': False,
+            'default_sf': 'nan',
+            'error_analysis': False,
+            'phase_error': 0,
+            'dz_error': 0,
+            'dx_error': 0,
+            
+            'quant_interval': None,
+            'epochs': 1,
+            'weight_sf': 1,
+            'output_scalebias_matrix': False,
+            'output_scalebias_for_INTENSITY': False,
+            'output_scale': 1.0,
+            'output_bias': 0.0,
+            'output_scale_learnable': False,
+            'output_bias_learnable': False,
+        }
+
+        scheduler = torch.arange(self.cfg['schedule_start'], 1+self.cfg['schedule_start']+(10-self.cfg['quant_after'])//self.cfg['schedule_every']*\
+                                self.cfg['schedule_increment'], self.cfg['schedule_increment'])
+        self.cfg['schedule_array'] = scheduler
+
+    def d2nn_propagation(self, model, input_field):
+        device = self.cfg['device']
+        img_size   = self.cfg['img_size']
+        samples    = self.cfg['samples']
+        shrinkFactor = self.cfg['shrink_factor'] if 'shrink_factor' in self.cfg.keys() else 1
+        if(shrinkFactor!=1):
+            csize = int((img_size*samples)/shrinkFactor)
+            spos  = int((img_size*samples - csize)/2)
+            epos  = spos + csize
+        else:
+            spos = 0
+            epos = img_size*samples
+
+        if self.cfg['error_analysis']:
+            self.cfg['eff_neuron_size'] = self.cfg['neuron_size'] + self.cfg['dx_error'] 
+            self.cfg['eff_layer_dist']  = self.cfg['delta_z'] + self.cfg['dz_error']
+        else:
+            self.cfg['eff_neuron_size']  =  self.cfg['neuron_size'] + (2 * self.cfg['dx_noise'] * torch.rand(1).item() - self.cfg['dx_noise']) #add neuron size noise N_f ~ U[-self.dx_noise, self.dx_noise]
+            self.cfg['eff_layer_dist']   =  self.cfg['delta_z']     + (2 * self.cfg['dz_noise'] * torch.rand(1).item() - self.cfg['dz_noise']) #add interlayer distance noise N_f ~ U[-self.dz_noise, self.dz_noise]
+            self.cfg['step_noise_value'] =  (2 * self.cfg['step_noise'] * torch.rand(1).item() - self.cfg['step_noise']) #phase step noise N_f ~ U[-self.dp_noise, self.dp_noise]
+
+        ground_truth = (input_field.unsqueeze(0)).to(device)
+        model.eval()
+        with torch.no_grad():
+            pred_img, out_bias,out_scale, temp, mask_list = model(ground_truth, 0, 0, self.cfg)
+            pred_img = pred_img[:,spos:epos,spos:epos]
+        return pred_img
+    
+    def initialize_D2NN_model(self):
+        """
+        Method: Initialize a D2NN model with layers
+        """ 
+        torch.manual_seed(self.cfg['torch_seed']) 
+        model = eval(self.cfg['model'])(self.cfg).to(self.cfg['device'])
+        self.D2NN_model = model
+
+    def initialize_D2NN(self, input_field):
+        """
+        Method: Initialize a D2NN field on focal plane
+        """ 
+        field = torch.tensor([]).to(self.cfg['device'])
+        field = self.d2nn_propagation(self.D2NN_model, input_field) 
+        return field.squeeze()
+
+    def initialize_D2NN_fields(self, IT=-1):
         """
         Method: form a list of patterns that contain m random initializations
         """
+        self.initialize_D2NN_model()
         self.ht_2D_list = []
         data_to_save = {}
-        path_to_save = f"./data/matrices/DMD/base_{IT}.pt"
-        for p in range(self.n_patterns // 2):
-            Ht_2D, ht_2D = self.initialize_dmd()
-            self.ht_2D_list.append(Ht_2D)
-            self.ht_2D_list.append(1 - Ht_2D)
-            data_to_save[f"pp_base_{p}"] = ht_2D
-        if self.n_patterns % 2:
-            Ht_2D, ht_2D = self.initialize_dmd()
-            self.ht_2D_list.append(Ht_2D)
-            data_to_save[f"sp_base_{int(self.n_patterns / 2)}"] = ht_2D
+        path_to_save = f"./data/matrices/D2NN/base_{IT}.pt"
+        delta = torch.pi/100
+        thetas_x = torch.linspace(0+delta, torch.pi-delta, self.n_patterns//2)
+        thetas_y = torch.linspace(0+delta, torch.pi-delta, self.n_patterns - self.n_patterns//2)
+        k = 2 * torch.pi / PhysicalModel.lambda_
+        # change x angle direction
+        for i in range(self.n_patterns//2):
+            phi_x = torch.linspace(0, self.nx*k*self.dx*torch.cos(thetas_x[i]), self.nx)
+            phi_xy = torch.tile(phi_x, (self.nx,1))
+            input_field_i = torch.ones(self.nx, self.nx) * torch.exp(1j * phi_xy)
+            ht_2D = self.initialize_D2NN(input_field_i)
+            self.ht_2D_list.append(ht_2D)
+        # change y angle direction
+        for i in range(self.n_patterns - self.n_patterns//2):
+            phi_y = torch.linspace(0, self.nx*k*self.dy*torch.cos(thetas_y[i]), self.nx)
+            phi_y = phi_y.unsqueeze(1)
+            phi_xy = torch.tile(phi_y, (1, self.nx))
+            input_field_i = torch.ones(self.nx, self.nx) * torch.exp(1j * phi_xy)
+            ht_2D = self.initialize_D2NN(input_field_i)
+            self.ht_2D_list.append(ht_2D)
         if IT != -1:
             torch.save(data_to_save, path_to_save)
 
     def visualize_patterns(self):
         """
-        Method: visualizing the DMD patterns
+        Method: visualizing the D2NN patterns
         """
         if self.n_patterns == 1:
-            vs.show_image(self.ht_2D_list[0].cpu().detach(), "Pattern", fig_size=(3, 3))
+            vs.show_image(torch.abs(self.ht_2D_list[0]).cpu().detach(), "Pattern", fig_size=(3, 3))
         elif self.n_patterns > 1:
-            vs.show_images([ht_2D.cpu().detach() for ht_2D in self.ht_2D_list], titles=[f"Pattern {i + 1}" for i in range(self.n_patterns)], cols=self.n_patterns, figsize=(6, 3))
+            vs.show_images([torch.abs(ht_2D).cpu().detach() for ht_2D in self.ht_2D_list], titles=[f"Pattern {i + 1}" for i in range(self.n_patterns)], cols=self.n_patterns, figsize=(6, 3))
         else:
             print("Nothing to visualize...!")
 
@@ -292,7 +350,6 @@ def calculate_phi(NPXLS):
 
     phi = torch.atan2(Y, X)
     return phi
-
 
 # 3D Convolution
 def conv_3D(PSF_3D, H, w=1):
