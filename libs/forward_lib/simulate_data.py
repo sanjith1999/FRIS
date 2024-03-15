@@ -37,7 +37,7 @@ class MnistSimulator:
         self.X[:, :, :, :] = 0
         for i in range(self.n_bodies):
             try:
-                ux, uy, uz = self.mx * self.up_factor[1], self.my * self.up_factor[2], self.mz * self.up_factor[0]
+                ux, uy, uz = self.mx * self.up_factor[1], self.my * self.up_factor[2], int(self.mz * self.up_factor[0])
             except:
                 ux, uy, uz = self.mx * self.up_factor, self.my * self.up_factor, self.mz * self.up_factor
 
