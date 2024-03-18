@@ -20,7 +20,8 @@ class PhysicalModel:
     lambda_ = 532.0 / 1000  # um
     NA = .8
     r_index = 1
-    dx, dy, dz = 0.08, 0.08, 0.08  # um
+    dx, dy, dz = 0.25, 0.25, 0.25  # um
+    # dx, dy, dz = 1.0, 1.0, 1.0  # um
     w = 2
 
     def __init__(self, nx, ny, nz, n_patterns, dd_factor=1, n_planes=1, device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
@@ -66,11 +67,12 @@ class PhysicalModel:
         aNs = AS.d2nnASwWindow_layer(self.nx, self.ny, self.dx, self.dy, self.dz, self.lambda_, window_size=8)
         H1 = torch.zeros(self.nz, self.nx, self.ny, dtype=torch.complex64)
 
-        for i in range(-self.nz//2, self.nz//2):
-            aNs.find_transfer_function(self.dz*i, mask_factor_=self.NA**2)
+        shift = self.D2NN.cfg['delta_z']/2 + self.D2NN.cfg['out_dist']
+        for i in range(0, self.nz):
+            prop_dist = (i-self.nz//2)*self.dz - shift
+            aNs.find_transfer_function(prop_dist, mask_factor_=self.NA**2)
             output_field = aNs.forward(self.D2NN.ht_2D_list[p_no-1].cpu().unsqueeze(0))
-            H1[i+self.nz//2] = output_field.detach()
-
+            H1[i] = output_field.detach()
         self.H2 = torch.abs(H1)
 
     def propagate_impulse(self, cor=(0, 0, 0)):
@@ -108,10 +110,13 @@ class PhysicalModel:
         """
         aNs = AS.d2nnASwWindow_layer(self.nx, self.ny, self.dx, self.dy, self.dz, self.lambda_, window_size=8)
         H1 = torch.zeros(self.nz, self.nx, self.ny, dtype=torch.complex64)
-        for i in range(-self.nz//2, self.nz//2):
-            aNs.find_transfer_function(self.dz*i, mask_factor_=self.NA**2)
+        
+        shift = self.D2NN.cfg['delta_z']/2 + self.D2NN.cfg['out_dist']
+        for i in range(0, self.nz):
+            prop_dist = (i-self.nz//2)*self.dz - shift
+            aNs.find_transfer_function(prop_dist, mask_factor_=self.NA**2)
             output_field = aNs.forward(self.D2NN.ht_2D_list[p_no-1].cpu().unsqueeze(0))
-            H1[i+self.nz//2] = output_field.detach()
+            H1[i] = output_field.detach()
         H2 = torch.abs(H1)
 
         H3 = X * H2
@@ -174,8 +179,8 @@ class D2NN_patterns:
             'n_layers': 2,
             'delta_z': 3.3e-06,
             'in_dist': 3.3e-06,
-            'out_dist': 5.9e-06,   # Change this will set the distance between output and last layer
-            'neuron_size': PhysicalModel.lambda_ * 1e-6 / 2,
+            'out_dist': 3.3e-06, 
+            'neuron_size': PhysicalModel.dx * 1e-6,
             
             'img_size': self.nx,
             'shrink_factor': 1,
@@ -287,7 +292,7 @@ class D2NN_patterns:
         model = eval(self.cfg['model'])(self.cfg).to(self.cfg['device'])
         self.D2NN_model = model
 
-    def initialize_D2NN(self, input_field):
+    def get_D2NN_output_field(self, input_field):
         """
         Method: Initialize a D2NN field on focal plane
         """ 
@@ -312,7 +317,7 @@ class D2NN_patterns:
             phi_x = torch.linspace(0, self.nx*k*self.dx*torch.cos(thetas_x[i]), self.nx)
             phi_xy = torch.tile(phi_x, (self.nx,1))
             input_field_i = torch.ones(self.nx, self.nx) * torch.exp(1j * phi_xy)
-            ht_2D = self.initialize_D2NN(input_field_i)
+            ht_2D = self.get_D2NN_output_field(input_field_i)
             self.ht_2D_list.append(ht_2D)
         # change y angle direction
         for i in range(self.n_patterns - self.n_patterns//2):
@@ -320,7 +325,7 @@ class D2NN_patterns:
             phi_y = phi_y.unsqueeze(1)
             phi_xy = torch.tile(phi_y, (1, self.nx))
             input_field_i = torch.ones(self.nx, self.nx) * torch.exp(1j * phi_xy)
-            ht_2D = self.initialize_D2NN(input_field_i)
+            ht_2D = self.get_D2NN_output_field(input_field_i)
             self.ht_2D_list.append(ht_2D)
         if IT != -1:
             torch.save(data_to_save, path_to_save)

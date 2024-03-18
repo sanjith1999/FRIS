@@ -29,8 +29,8 @@ def phi_function(X, nx, ny, nz, Phi):
 
 
 def TwIST(y, FM, tau, nx, ny, nz,
-        Psi = 'SOFT',
-        Phi = 'L1',
+        Psi = 'TV',
+        Phi = 'TV',
         lam1 = 1e-4, 
         alpha = 0,
         beta = 0,
