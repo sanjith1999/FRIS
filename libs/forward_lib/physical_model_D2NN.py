@@ -20,8 +20,8 @@ class PhysicalModel:
     lambda_ = 532.0 / 1000  # um
     NA = .8
     r_index = 1
-    dx, dy, dz = 0.25, 0.25, 0.25  # um
-    # dx, dy, dz = 1.0, 1.0, 1.0  # um
+    # dx, dy, dz = 0.25, 0.25, 0.25  # um
+    dx, dy, dz = 1.0, 1.0, 1.0  # um
     w = 2
 
     def __init__(self, nx, ny, nz, n_patterns, dd_factor=1, n_planes=1, device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
@@ -67,7 +67,8 @@ class PhysicalModel:
         aNs = AS.d2nnASwWindow_layer(self.nx, self.ny, self.dx, self.dy, self.dz, self.lambda_, window_size=8)
         H1 = torch.zeros(self.nz, self.nx, self.ny, dtype=torch.complex64)
 
-        shift = self.D2NN.cfg['delta_z']/2 + self.D2NN.cfg['out_dist']
+        # shift = self.D2NN.cfg['delta_z']/2 + self.D2NN.cfg['out_dist']
+        shift = 0
         for i in range(0, self.nz):
             prop_dist = (i-self.nz//2)*self.dz - shift
             aNs.find_transfer_function(prop_dist, mask_factor_=self.NA**2)
@@ -83,12 +84,11 @@ class PhysicalModel:
         cx, cy = self.nx // 2, self.ny // 2
         det_Y = torch.zeros(self.nx, self.ny).to(self.device).float()
 
-        i_iz = self.nz - iz
+        i_iz = self.nz - 1 - iz
         l_ix, l_iy = min(cx, ix), min(cy, iy)
         r_ix, r_iy = min(self.nx - ix, cx), min(self.ny - iy, cy)
 
-        if i_iz < self.nz:
-            det_Y[ix - l_ix:ix + r_ix, iy - l_iy: iy + r_iy] = self.H2[iz, ix, iy] * self.emPSF_3D[0, i_iz, cx - l_ix: cx + r_ix, cy - l_iy:cy + r_iy]
+        det_Y[ix - l_ix:ix + r_ix, iy - l_iy:iy + r_iy] = self.H2[iz, ix, iy] * self.emPSF_3D[0, i_iz, cx - l_ix: cx + r_ix, cy - l_iy:cy + r_iy]
         scale_factor = (1 / self.dd_factor, 1 / self.dd_factor)
         det_Y = torch.nn.functional.interpolate(det_Y.unsqueeze(0).unsqueeze(0), scale_factor=scale_factor, mode='area').squeeze()
         return det_Y
@@ -111,7 +111,8 @@ class PhysicalModel:
         aNs = AS.d2nnASwWindow_layer(self.nx, self.ny, self.dx, self.dy, self.dz, self.lambda_, window_size=8)
         H1 = torch.zeros(self.nz, self.nx, self.ny, dtype=torch.complex64)
         
-        shift = self.D2NN.cfg['delta_z']/2 + self.D2NN.cfg['out_dist']
+        # shift = self.D2NN.cfg['delta_z']/2 + self.D2NN.cfg['out_dist']
+        shift = 0
         for i in range(0, self.nz):
             prop_dist = (i-self.nz//2)*self.dz - shift
             aNs.find_transfer_function(prop_dist, mask_factor_=self.NA**2)

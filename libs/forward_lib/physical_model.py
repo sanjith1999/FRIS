@@ -93,12 +93,11 @@ class PhysicalModel:
         cx, cy = self.nx // 2, self.ny // 2
         det_Y = torch.zeros(self.nx, self.ny).to(self.device).float()
 
-        i_iz = self.nz - iz
+        i_iz = self.nz - 1 - iz
         l_ix, l_iy = min(cx, ix), min(cy, iy)
         r_ix, r_iy = min(self.nx - ix, cx), min(self.ny - iy, cy)
 
-        if i_iz < self.nz:
-            det_Y[ix - l_ix:ix + r_ix, iy - l_iy: iy + r_iy] = self.H2[iz, ix, iy] * self.emPSF_3D[0, i_iz, cx - l_ix: cx + r_ix, cy - l_iy:cy + r_iy]
+        det_Y[ix - l_ix:ix + r_ix, iy - l_iy: iy + r_iy] = self.H2[iz, ix, iy] * self.emPSF_3D[0, i_iz, cx - l_ix: cx + r_ix, cy - l_iy:cy + r_iy]
         scale_factor = (1 / self.dd_factor, 1 / self.dd_factor)
         det_Y = torch.nn.functional.interpolate(det_Y.unsqueeze(0).unsqueeze(0), scale_factor=scale_factor, mode='area').squeeze()
         return det_Y

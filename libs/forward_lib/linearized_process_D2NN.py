@@ -55,7 +55,7 @@ class LinearizedModel:
             for i_z in tqdm(range(self.nz), desc=f"Pattern: {i_p + 1}/{self.n_patterns}\t Nz: "):
                 for i_x in range(self.nx):
                     for i_y in range(self.ny):
-                        self.A[i_p * self.measure_pp:i_p * self.measure_pp + self.measure_pp, i_z * self.ny * self.nx + i_x * self.ny + i_y] = self.PM.propagate_impulse((i_x, i_y, i_z)).flatten()
+                        self.A[i_p*self.measure_pp : i_p*self.measure_pp + self.measure_pp, i_z*self.ny*self.nx + i_x*self.ny + i_y] = self.PM.propagate_impulse((i_x, i_y, i_z)).flatten()
         return "SUCCESS...!"
 
     def prepare_approximate(self, v_nx, v_ny, v_nz):
