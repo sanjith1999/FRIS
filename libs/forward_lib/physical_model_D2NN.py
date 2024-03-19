@@ -84,11 +84,12 @@ class PhysicalModel:
         cx, cy = self.nx // 2, self.ny // 2
         det_Y = torch.zeros(self.nx, self.ny).to(self.device).float()
 
-        i_iz = self.nz - 1 - iz
+        i_iz = self.nz - iz
         l_ix, l_iy = min(cx, ix), min(cy, iy)
         r_ix, r_iy = min(self.nx - ix, cx), min(self.ny - iy, cy)
 
-        det_Y[ix - l_ix:ix + r_ix, iy - l_iy:iy + r_iy] = self.H2[iz, ix, iy] * self.emPSF_3D[0, i_iz, cx - l_ix: cx + r_ix, cy - l_iy:cy + r_iy]
+        if i_iz < self.nz:
+            det_Y[ix - l_ix:ix + r_ix, iy - l_iy: iy + r_iy] = self.H2[iz, ix, iy] * self.emPSF_3D[0, i_iz, cx - l_ix: cx + r_ix, cy - l_iy:cy + r_iy]
         scale_factor = (1 / self.dd_factor, 1 / self.dd_factor)
         det_Y = torch.nn.functional.interpolate(det_Y.unsqueeze(0).unsqueeze(0), scale_factor=scale_factor, mode='area').squeeze()
         return det_Y
@@ -300,6 +301,16 @@ class D2NN_patterns:
         field = torch.tensor([]).to(self.cfg['device'])
         field = self.d2nn_propagation(self.D2NN_model, input_field) 
         return field.squeeze()
+    
+    def recover_patterns(self, IT=-1):
+        """
+        Method: recover patterns from the bases that used to create (IT) set of patterns
+        """
+        self.ht_2D_list = []
+        base_list = torch.load(f"./data/matrices/D2NN/base_{IT}.pt")
+        for key in base_list.keys():
+            ht_2D = (base_list[key]).float().to(self.device)
+            self.ht_2D_list.append(ht_2D)
 
     def initialize_D2NN_fields(self, IT=-1):
         """
@@ -320,6 +331,7 @@ class D2NN_patterns:
             input_field_i = torch.ones(self.nx, self.nx) * torch.exp(1j * phi_xy)
             ht_2D = self.get_D2NN_output_field(input_field_i)
             self.ht_2D_list.append(ht_2D)
+            data_to_save[f"p_{i}"] = ht_2D
         # change y angle direction
         for i in range(self.n_patterns - self.n_patterns//2):
             phi_y = torch.linspace(0, self.nx*k*self.dy*torch.cos(thetas_y[i]), self.nx)
@@ -328,6 +340,7 @@ class D2NN_patterns:
             input_field_i = torch.ones(self.nx, self.nx) * torch.exp(1j * phi_xy)
             ht_2D = self.get_D2NN_output_field(input_field_i)
             self.ht_2D_list.append(ht_2D)
+            data_to_save[f"p_{self.n_patterns//2+i}"] = ht_2D
         if IT != -1:
             torch.save(data_to_save, path_to_save)
 

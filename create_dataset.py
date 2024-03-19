@@ -1,8 +1,8 @@
 import torch
 import pandas as pd
 from tqdm import tqdm
-from libs.forward_lib.physical_model import PhysicalModel, psf_model
-from libs.forward_lib.linearized_process import LinearizedModel
+from libs.forward_lib.physical_model_D2NN import PhysicalModel, psf_model
+from libs.forward_lib.linearized_process_D2NN import LinearizedModel
 from libs.forward_lib.simulate_data import MnistSimulator
 from libs.forward_lib.read_data import ReadData
 
@@ -39,8 +39,8 @@ def field_related_calculations():
 
 # Calculate PSF of necessary Dimension and Store it before finding the Transformation A
 def store_PSF():
-    nx, ny, nz = 32, 32, 8
-    dx, dy, dz = 1., 1., 1.
+    nx, ny, nz = 128, 128, 32
+    dx, dy, dz = .25, .25, .25
     NA = .8
     r_index = 1
     IT = 51
@@ -62,9 +62,8 @@ def create_A():
     nx, ny, nz = 128, 128, 32
     n_patterns = 2
     dd_factor = 8
-    PSF_IT = 50
+    PSF_IT = 51
     PhysicalModel.dx, PhysicalModel.dy, PhysicalModel.dz = .25, .25, .25
-    PhysicalModel.ep_dx, PhysicalModel.ep_dy = 2., 2.
 
     LM = LinearizedModel(nx,ny,nz,n_patterns,dd_factor)
     for IT in range(8, 16):
@@ -72,8 +71,8 @@ def create_A():
         LM.nx, LM.ny, LM.nz, LM.n_patterns, LM.dd_factor = nx, ny, nz, n_patterns, dd_factor
         LM.dx, LM.dy, LM.dz = PhysicalModel.dx, PhysicalModel.dy, PhysicalModel.dz
         LM.init_models(PSF_IT)
-        LM.PM.dmd.initialize_patterns(IT)
-        LM.PM.dmd.visualize_patterns()
+        LM.PM.D2NN.initialize_D2NN_fields(IT)
+        LM.PM.D2NN.visualize_patterns()
         print(LM)
         LM.find_transformation()
         LM.save_matrix(it = IT)
@@ -81,7 +80,6 @@ def create_A():
         print("\n", LM)
         LM.approximate_transformation()
         LM.save_matrix(it = IT, is_original=False)
-
 
 
 
@@ -99,8 +97,8 @@ def approximate_A():
     print(LM)
     for IT in range(16):
         print(f"\n\nITERATION: {IT+1}\n-------------\n")
-        LM.PM.dmd.recover_patterns(IT)
-        LM.PM.dmd.visualize_patterns()
+        LM.PM.D2NN.recover_patterns(IT)
+        LM.PM.D2NN.visualize_patterns()
         LM.find_transformation()
         LM.save_matrix(it = IT, is_original=False)
 
