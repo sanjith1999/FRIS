@@ -133,11 +133,11 @@ class ReadData:
         X_ = self.uSampler(X_.unsqueeze(0).unsqueeze(0).float()).squeeze()        
         self.X[0,:,:,:] = (X_ - X_.min())/(X_.max()- X_.min()+(1e-10))
 
-    def reduce_dimension(self):
+    def reduce_dimension(self, kernel_size= (4,4,4)):
         """ 
         Method: reduce the dimension of X through 3D average pooling
         """
-        kernel_size = (self.v_nz, self.v_nx, self.v_ny)  
+        (self.v_nz, self.v_nx, self.v_ny) = kernel_size
         self.X_r = F.avg_pool3d(self.X, kernel_size)
     
 
