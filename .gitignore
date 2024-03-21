@@ -3,3 +3,4 @@ data/*
 *.pyc
 personnel.ipynb
 *.idea
+trained_models/*

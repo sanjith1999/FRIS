@@ -133,21 +133,22 @@ class ReadData:
         X_ = self.uSampler(X_.unsqueeze(0).unsqueeze(0).float()).squeeze()        
         self.X[0,:,:,:] = (X_ - X_.min())/(X_.max()- X_.min()+(1e-10))
 
-    def reduce_dimension(self):
+    def reduce_dimension(self, kernel_size = (4,4,4)):
         """ 
         Method: reduce the dimension of X through 3D average pooling
         """
-        kernel_size = (self.v_nz, self.v_nx, self.v_ny)  
+        self.v_nz ,self.v_nx, self.v_ny = kernel_size 
         self.X_r = F.avg_pool3d(self.X, kernel_size)
     
 
-    def visualize_data(self, is_orginal = False, n_planes = 8):
+    def visualize_data(self, is_orginal = False, n_planes = 8, title = None):
         """ 
         Method: visualize X or X_r
         """
+        if title is None:
+            title = "Object"
         if is_orginal:
             X_ = self.X[0].detach().cpu()
-            title = "High-Dimensional Object"
             planes = [itz*(self.nz//n_planes) for itz in range(n_planes)]
         else:
             X_ = self.X_r[0].detach().cpu()
