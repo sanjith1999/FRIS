@@ -12,7 +12,7 @@ class FieldModel:
     def __init__(self, nx=4, ny=4, nz=4, device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
         self.nx, self.ny, self.nz = nx, ny, nz
         self.device = device
-        self.PM = PhysicalModel(self.nx, self.ny, self.nz, n_patterns=1)
+        self.PM = PhysicalModel(self.nx, self.ny, self.nz, n_patterns=4)
 
     def __str__(self):
         desc = ""

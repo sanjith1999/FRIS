@@ -72,9 +72,9 @@ class PhysicalModel:
         for i in range(0, self.nz):
             prop_dist = (i-self.nz//2)*self.dz - shift
             aNs.find_transfer_function(prop_dist, mask_factor_=self.NA**2)
-            output_field = aNs.forward(self.D2NN.ht_2D_list[p_no-1].cpu().unsqueeze(0))
-            H1[i] = output_field.detach()
-        self.H2 = torch.abs(H1)
+            output_field = aNs.forward(self.D2NN.ht_2D_list[p_no-1].unsqueeze(0))
+            H1[i] = output_field
+        self.H2 = torch.abs(H1).square()
 
     def propagate_impulse(self, cor=(0, 0, 0)):
         """
@@ -84,7 +84,7 @@ class PhysicalModel:
         cx, cy = self.nx // 2, self.ny // 2
         det_Y = torch.zeros(self.nx, self.ny).to(self.device).float()
 
-        i_iz = self.nz - iz
+        i_iz = 2*(self.nz//2) - iz
         l_ix, l_iy = min(cx, ix), min(cy, iy)
         r_ix, r_iy = min(self.nx - ix, cx), min(self.ny - iy, cy)
 
@@ -119,7 +119,7 @@ class PhysicalModel:
             aNs.find_transfer_function(prop_dist, mask_factor_=self.NA**2)
             output_field = aNs.forward(self.D2NN.ht_2D_list[p_no-1].cpu().unsqueeze(0))
             H1[i] = output_field.detach()
-        H2 = torch.abs(H1)
+        H2 = torch.abs(H1).square()
 
         H3 = X * H2
         Y = conv_3D(self.emPSF_3D, H3, self.w).abs()[0]  # field around the detector
@@ -316,31 +316,51 @@ class D2NN_patterns:
         """
         Method: form a list of patterns that contain m random initializations
         """
+        def manhattan_distances(reference, n):
+            x = torch.arange(n).unsqueeze(0).repeat(n, 1)
+            y = torch.arange(n).unsqueeze(1).repeat(1, n)
+            distances = torch.abs(x - reference[0]) + torch.abs(y - reference[1])
+            return distances
+        
         self.initialize_D2NN_model()
         self.ht_2D_list = []
         data_to_save = {}
         path_to_save = f"./data/matrices/D2NN/base_{IT}.pt"
-        delta = torch.pi/100
-        thetas_x = torch.linspace(0+delta, torch.pi-delta, self.n_patterns//2)
-        thetas_y = torch.linspace(0+delta, torch.pi-delta, self.n_patterns - self.n_patterns//2)
+        delta = torch.pi/10
+        thetas = torch.linspace(0+delta, torch.pi-delta, self.n_patterns//4)
         k = 2 * torch.pi / PhysicalModel.lambda_
         # change x angle direction
-        for i in range(self.n_patterns//2):
-            phi_x = torch.linspace(0, self.nx*k*self.dx*torch.cos(thetas_x[i]), self.nx)
+        for i in range(self.n_patterns//4):
+            theta_i = thetas[i]
+            # x direction
+            phi_x = torch.linspace(0, self.nx*k*self.dx*torch.cos(theta_i), self.nx)
             phi_xy = torch.tile(phi_x, (self.nx,1))
             input_field_i = torch.ones(self.nx, self.nx) * torch.exp(1j * phi_xy)
             ht_2D = self.get_D2NN_output_field(input_field_i)
             self.ht_2D_list.append(ht_2D)
-            data_to_save[f"p_{i}"] = ht_2D
-        # change y angle direction
-        for i in range(self.n_patterns - self.n_patterns//2):
-            phi_y = torch.linspace(0, self.nx*k*self.dy*torch.cos(thetas_y[i]), self.nx)
+            data_to_save[f"p_{4*i}"] = ht_2D
+            # y direction
+            phi_y = torch.linspace(0, self.nx*k*self.dy*torch.cos(theta_i), self.nx)
             phi_y = phi_y.unsqueeze(1)
             phi_xy = torch.tile(phi_y, (1, self.nx))
             input_field_i = torch.ones(self.nx, self.nx) * torch.exp(1j * phi_xy)
             ht_2D = self.get_D2NN_output_field(input_field_i)
             self.ht_2D_list.append(ht_2D)
-            data_to_save[f"p_{self.n_patterns//2+i}"] = ht_2D
+            data_to_save[f"p_{4*i+1}"] = ht_2D
+            # -y,x direction
+            phi_xy = manhattan_distances(torch.tensor((0,0)), self.nx)
+            phi_xy = phi_xy * (1/torch.sqrt(torch.tensor(2))) * k * self.dx*torch.cos(theta_i)
+            input_field_i = torch.ones(self.nx, self.nx) * torch.exp(1j * phi_xy)
+            ht_2D = self.get_D2NN_output_field(input_field_i)
+            self.ht_2D_list.append(ht_2D)
+            data_to_save[f"p_{4*i+2}"] = ht_2D
+            # y,x direction
+            phi_xy = manhattan_distances(torch.tensor((0,self.nx-1)), self.nx)
+            phi_xy = phi_xy * (1/torch.sqrt(torch.tensor(2))) * k * self.dx*torch.cos(theta_i)
+            input_field_i = torch.ones(self.nx, self.nx) * torch.exp(1j * phi_xy)
+            ht_2D = self.get_D2NN_output_field(input_field_i)
+            self.ht_2D_list.append(ht_2D)
+            data_to_save[f"p_{4*i+3}"] = ht_2D
         if IT != -1:
             torch.save(data_to_save, path_to_save)
 

@@ -154,7 +154,7 @@ def create_data(IT = 0, batch_size = 2, object_type = "MNIST"):
 
 # Calculate Measurement
 def run_process():
-    for m_it in range(16):
+    for m_it in range(4):
         LM = LinearizedModel()
         LM.load_matrix(m_it)
         for IT in tqdm(range(32), desc = f"Pattern Pair: {m_it+1:02}\t\tData Point: "):

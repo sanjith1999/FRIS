@@ -69,7 +69,7 @@ class PhysicalModel:
         ht_3D[:, self.nz // 2] = self.dmd.ht_2D_list[p_no - 1]
 
         H1 = conv_3D(self.exPSF_3D, ht_3D, w=self.w)
-        self.H2 = H1.abs().square().sum(dim=0).sqrt()
+        self.H2 = H1.abs().square().sum(dim=0)
 
     def propagate_dmd_AS(self, p_no=1):
         """
@@ -83,7 +83,7 @@ class PhysicalModel:
             output_field = aNs.forward(self.dmd.ht_2D_list[p_no-1].cpu().unsqueeze(0))
             H1[i+self.nz//2] = output_field.detach()
 
-        self.H2 = torch.abs(H1)
+        self.H2 = torch.abs(H1).square()
 
     def propagate_impulse(self, cor=(0, 0, 0)):
         """
@@ -93,12 +93,11 @@ class PhysicalModel:
         cx, cy = self.nx // 2, self.ny // 2
         det_Y = torch.zeros(self.nx, self.ny).to(self.device).float()
 
-        i_iz = self.nz - iz
+        i_iz = 2*self.nz//2 - iz
         l_ix, l_iy = min(cx, ix), min(cy, iy)
         r_ix, r_iy = min(self.nx - ix, cx), min(self.ny - iy, cy)
 
-        if i_iz < self.nz:
-            det_Y[ix - l_ix:ix + r_ix, iy - l_iy: iy + r_iy] = self.H2[iz, ix, iy] * self.emPSF_3D[0, i_iz, cx - l_ix: cx + r_ix, cy - l_iy:cy + r_iy]
+        det_Y[ix - l_ix:ix + r_ix, iy - l_iy: iy + r_iy] = self.H2[iz, ix, iy] * self.emPSF_3D[0, i_iz, cx - l_ix: cx + r_ix, cy - l_iy:cy + r_iy]
         scale_factor = (1 / self.dd_factor, 1 / self.dd_factor)
         det_Y = torch.nn.functional.interpolate(det_Y.unsqueeze(0).unsqueeze(0), scale_factor=scale_factor, mode='area').squeeze()
         return det_Y
@@ -125,7 +124,7 @@ class PhysicalModel:
         ht_3D[:, self.nz // 2] = self.dmd.ht_2D_list[p_no - 1]
 
         H1 = conv_3D(self.exPSF_3D, ht_3D, self.w)
-        H2 = H1.abs().square().sum(dim=0).sqrt()  # field in the object space
+        H2 = H1.abs().square().sum(dim=0)  # intensity of the field in the object space
 
         H3 = X * H2
         Y = conv_3D(self.emPSF_3D, H3, self.w).abs()[0]  # field around the detector
@@ -164,7 +163,7 @@ class PhysicalModel:
             aNs.find_transfer_function(self.dz*i, mask_factor_=self.NA**2)
             output_field = aNs.forward(self.D2NN.ht_2D_list[p_no-1].cpu().unsqueeze(0))
             H1[i+self.nz//2] = output_field.detach()
-        H2 = torch.abs(H1)
+        H2 = torch.abs(H1).square()
 
         H3 = X * H2
         Y = conv_3D(self.emPSF_3D, H3, self.w).abs()[0]  # field around the detector
