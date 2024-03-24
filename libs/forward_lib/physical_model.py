@@ -110,7 +110,7 @@ class PhysicalModel:
         ht_3D[:, self.nz // 2] = self.dmd.ht_2D_list[p_no - 1]
 
         H1 = conv_3D(self.exPSF_3D, ht_3D, self.w)
-        H2 = H1.abs().square().sum(dim=0).sqrt()  # field in the object space
+        H2 = H1.abs().square().sum(dim=0)  # field in the object space
 
         H3 = X * H2
         Y = conv_3D(self.emPSF_3D, H3, self.w).abs()[0]  # field around the detector

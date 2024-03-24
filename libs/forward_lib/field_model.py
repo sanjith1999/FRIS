@@ -45,6 +45,21 @@ class FieldModel:
             corr_list.append(corr)
         visualize_SSIM(measures=[corr_list], x_values=[(p - n_planes // 2) * separation for p in range(n_planes - 1)], x_label="Left Plane", y_label="Cross-Correlation",
                        title=f"Plane Separation: {separation}um")
+    
+    
+    def symmetric_check(self, step_size=1):
+        """ 
+        Method: calculation of correlation between planes at specified separation(um)
+        """
+        corr_list = []
+        c_plane = self.nz//2
+        for p in range(1, c_plane, step_size):
+            sig1 = self.H2[c_plane-p ].flatten()                                #64 --> 32 --> 31, 32           65--> 32 --> 31, 33
+            sig2 = self.H2[c_plane+p - 1+ self.nz%2].flatten()
+            sigs = torch.stack((sig1, sig2))
+            corr = torch.corrcoef(sigs)[0][1].item()
+            corr_list.append(corr)
+        visualize_SSIM(measures=[corr_list], x_values=[i*self.PM.dz for i in range(1,c_plane, step_size)], x_label="d(um)", y_label="Cross-Correlation", title=f"SSIM ~ F-Plane ± d")
 
     def save_object_space(self, it=100):
         """ 
