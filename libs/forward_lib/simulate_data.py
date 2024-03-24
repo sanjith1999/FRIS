@@ -51,7 +51,7 @@ class MnistSimulator:
 
     def augmented_mnist_body(self):
         body_id = randint(0, self.mnist_limit)
-        angle_x, angle_y, angle_z = 0, 0, randint(-90, 90)  # No rotation around X, Y for making the task easy
+        angle_x, angle_y, angle_z = randint(-90, 90), randint(-90, 90), randint(-90, 90)  # No rotation around X, Y for making the task easy
 
         body = self.transform(self.mnist_trainset[body_id][0]).to(self.device)
         s_body = body.repeat(28, 1, 1)

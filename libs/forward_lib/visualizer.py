@@ -55,7 +55,7 @@ def show_images(images, titles=None, cols=4, figsize=(12, 6), v_range = None):
         if v_range is not None:
             ax.imshow(image,vmax = v_range[1], vmin = v_range[0])
         else:
-            ax.imshow(image)
+            ax.imshow(image)           # , cmap = "Pastel1"
         ax.set_title(title)
         ax.axis('off')
 
@@ -148,12 +148,14 @@ def visual_3Dcomparision(X, n_comparision = 2, Nz = 3, n_rows=1,fig_size = (18,4
     plt.tight_layout()
 
 
-def visualize_SSIM(measures, x_values=None, title = "SSIM Measure", y_label = 'SSIM Score', x_label = "Planes", labels=None,set_legend = False):
-    plt.figure(figsize=(6, 6))  # Adjust the figure size if needed
+def visualize_SSIM(measures, x_values=None, title = "SSIM Measure", y_label = 'SSIM Score', x_label = "Planes", labels=None,set_legend = False, fig_size = (6, 6), varying_x = False):
+    plt.figure(figsize=fig_size)  
     if not labels:
         labels = [f"Measure {i}" for i in range(len(measures))]
     for i, measure in enumerate(measures):
-        if x_values and len(x_values)>i:
+        if varying_x:
+            plt.plot(x_values[i], measure, marker='o', linestyle='-', label = labels[i], alpha = .8)
+        elif x_values and len(x_values)==len(measure):
             plt.plot(x_values, measure, marker='o', linestyle='-', label = labels[i],alpha = .8)
         else:
             plt.plot(measure, marker='o', linestyle='-', label =labels[i], alpha=.8)
