@@ -56,7 +56,7 @@ class PhysicalModel:
         """
         psf = (torch.load(f"./data/matrices/field/PSF_{IT}.pt")['matrix']).to(self.device)  # Manual extra-care should be taken to match parameters
         self.exPSF_3D = psf().detach().permute(0, 3, 1, 2)
-        self.emPSF_3D = self.exPSF_3D.abs().square().sum(dim=0).sqrt().unsqueeze(dim=0)
+        self.emPSF_3D = self.exPSF_3D.abs().square().sum(dim=0).unsqueeze(dim=0)
 
     def propagate_dmd(self, p_no=1):
         """
@@ -68,7 +68,7 @@ class PhysicalModel:
         ht_3D[:, self.nz // 2] = self.dmd.ht_2D_list[p_no - 1]
 
         H1 = conv_3D(self.exPSF_3D, ht_3D, w=self.w)
-        self.H2 = H1.abs().square().sum(dim=0).sqrt()
+        self.H2 = H1.abs().square().sum(dim=0)
 
     def propagate_impulse(self, cor=(0, 0, 0)):
         """
