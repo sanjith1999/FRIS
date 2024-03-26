@@ -49,7 +49,7 @@ class PhysicalModel:
         """
         psf = psf_model(self.NA, self.r_index, self.lambda_, self.dx, self.dy, self.dz, self.nx, self.ny, self.nz).to(self.device)
         self.exPSF_3D = psf().detach().permute(0, 3, 1, 2)
-        self.emPSF_3D = self.exPSF_3D.abs().square().sum(dim=0).sqrt().unsqueeze(dim=0)
+        self.emPSF_3D = self.exPSF_3D.abs().square().sum(dim=0).unsqueeze(dim=0)
 
     def load_psf(self, IT):
         """
@@ -57,7 +57,7 @@ class PhysicalModel:
         """
         psf = (torch.load(f"./data/matrices/field/PSF_{IT}.pt")['matrix']).to(self.device)  # Manual extra-care should be taken to match parameters
         self.exPSF_3D = psf().detach().permute(0, 3, 1, 2)
-        self.emPSF_3D = self.exPSF_3D.abs().square().sum(dim=0).sqrt().unsqueeze(dim=0)
+        self.emPSF_3D = self.exPSF_3D.abs().square().sum(dim=0).unsqueeze(dim=0)
 
     def propagate_dmd(self, p_no=1):
         """

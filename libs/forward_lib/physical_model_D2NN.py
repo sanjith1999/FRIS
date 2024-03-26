@@ -20,8 +20,8 @@ class PhysicalModel:
     lambda_ = 532.0 / 1000  # um
     NA = .8
     r_index = 1
-    # dx, dy, dz = 0.25, 0.25, 0.25  # um
-    dx, dy, dz = 1.0, 1.0, 1.0  # um
+    dx, dy, dz = 0.25, 0.25, 0.25  # um
+    # dx, dy, dz = 1.0, 1.0, 1.0  # um
     w = 2
 
     def __init__(self, nx, ny, nz, n_patterns, dd_factor=1, n_planes=1, device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
@@ -50,7 +50,7 @@ class PhysicalModel:
         """
         psf = psf_model(self.NA, self.r_index, self.lambda_, self.dx, self.dy, self.dz, self.nx, self.ny, self.nz).to(self.device)
         self.exPSF_3D = psf().detach().permute(0, 3, 1, 2)
-        self.emPSF_3D = self.exPSF_3D.abs().square().sum(dim=0).sqrt().unsqueeze(dim=0)
+        self.emPSF_3D = self.exPSF_3D.abs().square().sum(dim=0).unsqueeze(dim=0)
 
     def load_psf(self, IT):
         """
@@ -58,7 +58,7 @@ class PhysicalModel:
         """
         psf = (torch.load(f"./data/matrices/field/PSF_{IT}.pt")['matrix']).to(self.device)  # Manual extra-care should be taken to match parameters
         self.exPSF_3D = psf().detach().permute(0, 3, 1, 2)
-        self.emPSF_3D = self.exPSF_3D.abs().square().sum(dim=0).sqrt().unsqueeze(dim=0)
+        self.emPSF_3D = self.exPSF_3D.abs().square().sum(dim=0).unsqueeze(dim=0)
 
     def propagate_D2NN(self, p_no=1):
         """
