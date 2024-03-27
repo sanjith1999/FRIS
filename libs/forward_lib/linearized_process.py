@@ -83,11 +83,11 @@ class LinearizedModel:
                         self.A[i_p * self.measure_pp:(i_p + 1) * self.measure_pp, i_z * self.ny * self.nx + i_x * self.ny + i_y] = self.PM.propagate_patch(Ip).flatten()
                         Ip[0, i_z * self.v_nz:(i_z + 1) * self.v_nz, i_x * self.v_nx:(i_x + 1) * self.v_nx, i_y * self.v_ny:(i_y + 1) * self.v_ny] = 0
 
-    def save_matrix(self, it=100, is_original=True):
+    def save_matrix(self, it=100, is_original=True, is_approx = False):
         """ 
         Method: function to save matrix A reduced/original
         """
-        path = f"./data/matrices/original/A_{it}.pt" if is_original else f"./data/matrices/reduced/A_{it}.pt"
+        path = f"./data/matrices/original/A_{it}.pt" if is_original else (f"./data/matrices/approximated/A_{it}.pt" if is_approx else f"./data/matrices/reduced/A_{it}.pt")
         data_to_save = {"NA": PhysicalModel.NA, "voxel_size": [self.dx, self.dy, self.dz], "dimensions": [self.nx, self.ny, self.nz], "p_dimensions": [self.ep_dx, self.ep_dy],
                         "c_patterns": self.n_patterns, "c_planes": self.n_planes, "down_factor": self.dd_factor, 'matrix': self.A}
         torch.save(data_to_save, path)
@@ -103,11 +103,11 @@ class LinearizedModel:
         new_df = pd.DataFrame(data_to_save, index=[0])
         new_df.to_csv(log_path, mode='a', header=False, index=False)
 
-    def load_matrix(self, it=0, is_original=True):
+    def load_matrix(self, it=0, is_original=True, is_approx = False):
         """ 
         Method: function to load an available matrix together with parameters
         """
-        path = f"./data/matrices/original/A_{it}.pt" if is_original else f"./data/matrices/reduced/A_{it}.pt"
+        path = f"./data/matrices/original/A_{it}.pt" if is_original else (f"./data/matrices/approximated/A_{it}.pt" if is_approx else f"./data/matrices/reduced/A_{it}.pt")
         loaded_data = torch.load(path)
 
         PhysicalModel.NA = loaded_data["NA"]

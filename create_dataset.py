@@ -44,14 +44,14 @@ def store_PSF():
 # Calculation of matrix A
 def create_A():
     nx, ny, nz = 128, 128, 32
-    n_patterns = 2
+    n_patterns = 4
     dd_factor = 16
     PSF_IT = 50
     PhysicalModel.dx, PhysicalModel.dy, PhysicalModel.dz = .25, .25, .25
     PhysicalModel.ep_dx, PhysicalModel.ep_dy = .5, .5
 
     LM = LinearizedModel(nx,ny,nz,n_patterns,dd_factor)
-    for IT in range(64):
+    for IT in range(32):
         print(f"\n\nITERATION: {IT+1}\n-------------\n")
         LM.nx, LM.ny, LM.nz, LM.n_patterns, LM.dd_factor = nx, ny, nz, n_patterns, dd_factor
         LM.dx, LM.dy, LM.dz = PhysicalModel.dx, PhysicalModel.dy, PhysicalModel.dz
@@ -72,7 +72,7 @@ def create_A():
 # Approximation of A to form a smaller matrix
 def approximate_A():
     nx, ny, nz = 32, 32, 8
-    n_patterns = 2
+    n_patterns = 4
     dd_factor = 4
     PSF_IT = 51
     PhysicalModel.dx, PhysicalModel.dy, PhysicalModel.dz = 1., 1., 1.
@@ -81,12 +81,12 @@ def approximate_A():
     LM = LinearizedModel(nx,ny,nz,n_patterns,dd_factor)
     LM.init_models(PSF_IT)
     print(LM)
-    for IT in range(64):
+    for IT in range(32):
         print(f"\n\nITERATION: {IT+1}\n-------------\n")
         LM.PM.dmd.recover_patterns(IT)
         LM.PM.dmd.visualize_patterns()
         LM.find_transformation()
-        LM.save_matrix(it = IT, is_original=False)
+        LM.save_matrix(it = IT, is_original=False, is_approx=True)
 
 
 # Stack up the individually calculated A to form the larger matrix
@@ -94,16 +94,21 @@ def stack_up_A(DT = 130):
     n_p = 128
     LM = LinearizedModel()
     stacked_A = torch.tensor([]).to(LM.device)
-    for IT in range(int(n_p/2)):
+    stacked_A_a = torch.tensor([]).to(LM.device)
+    for IT in range(int(n_p/4)):
         LM.load_matrix(IT, is_original=False)
         stacked_A = torch.cat((stacked_A, LM.A))
+        LM.load_matrix(IT, is_original=False, is_approx=True)
+        stacked_A_a = torch.cat((stacked_A_a, LM.A))
     LM.A = stacked_A
     LM.n_patterns = n_p
     LM.save_matrix(DT, is_original=False)
+    LM.A = stacked_A_a
+    LM.save_matrix(DT, is_original=False, is_approx=True)
 
 
 # Create and store objects
-def create_data(IT = 0, batch_size = 2, object_type = "MNIST"):
+def create_data(IT = 0, batch_size = 2, object_type = "BLOOD_CELL"):
     nx, ny, nz = 128, 128, 32
     device = 'cuda'
     X_r, X = torch.tensor([]).to(device), torch.tensor([]).to(device)
@@ -140,7 +145,7 @@ def create_data(IT = 0, batch_size = 2, object_type = "MNIST"):
 
 # Calculate Measurement
 def run_process():
-    for m_it in range(64):
+    for m_it in range(32):
         LM = LinearizedModel()
         LM.load_matrix(m_it)
         for IT in tqdm(range(32), desc = f"Pattern Pair: {m_it+1:02}\t\tData Point: "):
@@ -159,7 +164,7 @@ def run_process():
 
 
 def combine_data():
-    for IT in range(64):
+    for IT in range(32):
         Yi = torch.load(f"./data/dataset/measurement/Y_{IT}.pt")
         Xri = torch.load(f"./data/dataset/object/X_r_{IT}.pt")
         Xi = torch.load(f"./data/dataset/h_object/X_{IT}.pt")

@@ -17,5 +17,6 @@
     |     ├── log
     |     ├── noise
     |     ├── original
+    |     ├── approximated
     |     └── reduced
     └── MNIST
