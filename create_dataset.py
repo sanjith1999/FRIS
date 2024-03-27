@@ -1,5 +1,4 @@
 import torch
-import pandas as pd
 from tqdm import tqdm
 from libs.forward_lib.physical_model import PhysicalModel, psf_model
 from libs.forward_lib.linearized_process import LinearizedModel
@@ -7,44 +6,29 @@ from libs.forward_lib.simulate_data import MnistSimulator
 from libs.forward_lib.read_data import ReadData
 
 
-def field_related_calculations():
-    nx, ny, nz = 2048, 2048, 512
-    
-    par_list  = [[1.5, 1.2], [1., .8], [1.3, 1.]]
-
-    for it, param in enumerate(par_list):
-        [PhysicalModel.r_index, PhysicalModel.NA] = param
-        PM = PhysicalModel(nx, ny, nz, n_patterns=1, device = 'cpu')
-        data_to_save = {
-            "r_index"   : PM.r_index,
-            "NA"        : PM.NA,
-            "dimension" : [PM.nx, PM.ny, PM.nz],
-            "voxel"     : [PM.dx, PM.dy, PM.dz],
-            "matrix"    : PM.exPSF_3D
-        }
-        path_to_save = f'./data/matrices/field/PSF_{it}.pt'
-        torch.save(data_to_save, path_to_save)
-    
-        log_data = {
-            "it" : it,
-            "r_index" : PM.r_index,
-            "NA" : PM.NA,
-            "nx" : PM.nx, "ny" : PM.ny, "nz" : PM.nz,
-            "dx" : PM.dx, "dy" : PM.dy, "dz" : PM.dz
-        }
-        log_path = "./data/matrices/log/PSF.csv"
-        new_df = pd.DataFrame(log_data, index = [0])
-        new_df.to_csv(log_path, mode='a', header=False, index=False)
-
-
 # Calculate PSF of necessary Dimension and Store it before finding the Transformation A
 def store_PSF():
+    nx, ny, nz = 128, 128, 32
+    dx, dy, dz = .25, .25, .25
+    NA = .8
+    r_index = 1
+    IT = 50
+    PSF = psf_model(NA=NA, Rindex=r_index, lambda_=PhysicalModel.lambda_ ,dx=dx, dy=dy, dz=dz, Nx=nx, Ny=ny, Nz=nz)
+    data_to_save = {
+        "r_index"   : r_index,
+        "NA"        : NA,
+        "dimension" : [nx, ny, nz],
+        "voxel"     : [dx, dy, dz],
+        "matrix"    : PSF
+    }
+    path_to_save = f'./data/matrices/field/PSF_{IT}.pt'
+    torch.save(data_to_save, path_to_save)
+
     nx, ny, nz = 32, 32, 8
     dx, dy, dz = 1., 1., 1.
     NA = .8
     r_index = 1
     IT = 51
-    
     PSF = psf_model(NA=NA, Rindex=r_index, lambda_=PhysicalModel.lambda_ ,dx=dx, dy=dy, dz=dz, Nx=nx, Ny=ny, Nz=nz)
     data_to_save = {
         "r_index"   : r_index,
@@ -61,13 +45,13 @@ def store_PSF():
 def create_A():
     nx, ny, nz = 128, 128, 32
     n_patterns = 2
-    dd_factor = 8
+    dd_factor = 16
     PSF_IT = 50
     PhysicalModel.dx, PhysicalModel.dy, PhysicalModel.dz = .25, .25, .25
-    PhysicalModel.ep_dx, PhysicalModel.ep_dy = 2., 2.
+    PhysicalModel.ep_dx, PhysicalModel.ep_dy = .5, .5
 
     LM = LinearizedModel(nx,ny,nz,n_patterns,dd_factor)
-    for IT in range(8, 16):
+    for IT in range(64):
         print(f"\n\nITERATION: {IT+1}\n-------------\n")
         LM.nx, LM.ny, LM.nz, LM.n_patterns, LM.dd_factor = nx, ny, nz, n_patterns, dd_factor
         LM.dx, LM.dy, LM.dz = PhysicalModel.dx, PhysicalModel.dy, PhysicalModel.dz
@@ -89,15 +73,15 @@ def create_A():
 def approximate_A():
     nx, ny, nz = 32, 32, 8
     n_patterns = 2
-    dd_factor = 2
+    dd_factor = 4
     PSF_IT = 51
     PhysicalModel.dx, PhysicalModel.dy, PhysicalModel.dz = 1., 1., 1.
-    PhysicalModel.ep_dx, PhysicalModel.ep_dy = 2., 2.
+    PhysicalModel.ep_dx, PhysicalModel.ep_dy = .5, .5
 
     LM = LinearizedModel(nx,ny,nz,n_patterns,dd_factor)
     LM.init_models(PSF_IT)
     print(LM)
-    for IT in range(16):
+    for IT in range(64):
         print(f"\n\nITERATION: {IT+1}\n-------------\n")
         LM.PM.dmd.recover_patterns(IT)
         LM.PM.dmd.visualize_patterns()
@@ -107,7 +91,7 @@ def approximate_A():
 
 # Stack up the individually calculated A to form the larger matrix
 def stack_up_A(DT = 130):
-    n_p = 32
+    n_p = 128
     LM = LinearizedModel()
     stacked_A = torch.tensor([]).to(LM.device)
     for IT in range(int(n_p/2)):
@@ -156,7 +140,7 @@ def create_data(IT = 0, batch_size = 2, object_type = "MNIST"):
 
 # Calculate Measurement
 def run_process():
-    for m_it in range(16):
+    for m_it in range(64):
         LM = LinearizedModel()
         LM.load_matrix(m_it)
         for IT in tqdm(range(32), desc = f"Pattern Pair: {m_it+1:02}\t\tData Point: "):
@@ -175,7 +159,7 @@ def run_process():
 
 
 def combine_data():
-    for IT in range(32):
+    for IT in range(64):
         Yi = torch.load(f"./data/dataset/measurement/Y_{IT}.pt")
         Xri = torch.load(f"./data/dataset/object/X_r_{IT}.pt")
         Xi = torch.load(f"./data/dataset/h_object/X_{IT}.pt")
