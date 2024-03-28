@@ -90,12 +90,11 @@ def approximate_A():
 
 
 # Stack up the individually calculated A to form the larger matrix
-def stack_up_A(DT = 130):
-    n_p = 128
+def stack_up_A(DT = 130, n_p = 128, pp_A = 4):              # n_p ~ Number of Patterns, pp_A ~ patterns per A
     LM = LinearizedModel()
     stacked_A = torch.tensor([]).to(LM.device)
     stacked_A_a = torch.tensor([]).to(LM.device)
-    for IT in range(int(n_p/4)):
+    for IT in range(int(n_p/pp_A)):
         LM.load_matrix(IT, is_original=False)
         stacked_A = torch.cat((stacked_A, LM.A))
         LM.load_matrix(IT, is_original=False, is_approx=True)
@@ -144,17 +143,20 @@ def create_data(IT = 0, batch_size = 2, object_type = "BLOOD_CELL"):
 
 
 # Calculate Measurement
-def run_process():
-    for m_it in range(32):
+def run_process(is_mask=False, p_batch = 32, n_batch = 32):
+    for m_it in range(p_batch):
         LM = LinearizedModel()
         LM.load_matrix(m_it)
-        for IT in tqdm(range(32), desc = f"Pattern Pair: {m_it+1:02}\t\tData Point: "):
+        for IT in tqdm(range(n_batch), desc = f"Pattern Pair: {m_it+1:02}\t\tData Point: "):
+            X =  torch.load(f"./data/dataset/h_object/X_{IT}.pt").to(LM.device)
+            if is_mask:
+                X = X.reshape(n_batch, 32, 128, 128)
+                X[:, :16,:, :], X[:, :20, :, :]= 0, 0
+                X = X.reshape(n_batch,-1)
             if m_it ==0:
-                X =  torch.load(f"./data/dataset/h_object/X_{IT}.pt").to(LM.device)
                 Y = LM.A@X.t()
                 torch.save(Y.t(),f"./data/dataset/measurement/Y_{IT}.pt")
             else:
-                X =  torch.load(f"./data/dataset/h_object/X_{IT}.pt").to(LM.device)
                 Y = torch.load(f"./data/dataset/measurement/Y_{IT}.pt").to(LM.device).t()
                 y = LM.A@X.t()
                 Y = torch.cat((Y, y))
@@ -163,8 +165,8 @@ def run_process():
 
 
 
-def combine_data():
-    for IT in range(32):
+def combine_data(n_batch):
+    for IT in range(n_batch):
         Yi = torch.load(f"./data/dataset/measurement/Y_{IT}.pt")
         Xri = torch.load(f"./data/dataset/object/X_r_{IT}.pt")
         Xi = torch.load(f"./data/dataset/h_object/X_{IT}.pt")
