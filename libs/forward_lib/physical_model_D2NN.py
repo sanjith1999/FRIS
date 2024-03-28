@@ -20,18 +20,21 @@ class PhysicalModel:
     lambda_ = 532.0 / 1000  # um
     NA = .8
     r_index = 1
+    # dx, dy, dz = 0.08, 0.08, 0.08  # um
     dx, dy, dz = 0.25, 0.25, 0.25  # um
     # dx, dy, dz = 1.0, 1.0, 1.0  # um
     w = 2
 
-    def __init__(self, nx, ny, nz, n_patterns, dd_factor=1, n_planes=1, device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
+    def __init__(self, nx, ny, nz, n_alphas, n_thetas, dd_factor=1, n_planes=1, device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
         self.nx, self.ny, self.nz = nx, ny, nz
-        self.n_patterns = n_patterns
+        self.n_alphas = n_alphas
+        self.n_thetas = n_thetas
+        self.n_patterns = self.n_alphas * self.n_thetas
         self.dd_factor = dd_factor
         self.n_planes = n_planes
         self.m_planes = [(i * nz) // (n_planes + 1) for i in range(1, n_planes + 1)]
         self.device = device
-        self.D2NN = D2NN_patterns(self.nx, self.ny, self.dx, self.dy, self.n_patterns, self.device)
+        self.D2NN = D2NN_patterns(self.nx, self.ny, self.dx, self.dy, self.n_alphas, self.n_thetas, self.device)
 
     def __str__(self):
         desc = ""
@@ -166,10 +169,12 @@ class D2NN_patterns:
     Class: Store multiple D2NN fields
     """
 
-    def __init__(self, nx, ny, dx, dy, n_patterns, device):
+    def __init__(self, nx, ny, dx, dy, n_alphas, n_thetas, device):
         self.nx, self.ny = nx, ny
         self.dx, self.dy = dx, dy
-        self.n_patterns = n_patterns
+        self.n_alphas = n_alphas
+        self.n_thetas = n_thetas
+        self.n_patterns = self.n_alphas  * self.n_thetas
         self.device = device
         self.D2NN_model = None
 
@@ -282,7 +287,7 @@ class D2NN_patterns:
         ground_truth = (input_field.unsqueeze(0)).to(device)
         model.eval()
         with torch.no_grad():
-            pred_img, out_bias,out_scale, temp, mask_list = model(ground_truth, 0, 0, self.cfg)
+            pred_img, _, _, _, _ = model(ground_truth, 0, 0, self.cfg)
             pred_img = pred_img[:,spos:epos,spos:epos]
         return pred_img
     
@@ -316,51 +321,33 @@ class D2NN_patterns:
         """
         Method: form a list of patterns that contain m random initializations
         """
-        def manhattan_distances(reference, n):
-            x = torch.arange(n).unsqueeze(0).repeat(n, 1)
-            y = torch.arange(n).unsqueeze(1).repeat(1, n)
-            distances = torch.abs(x - reference[0]) + torch.abs(y - reference[1])
-            return distances
-        
         self.initialize_D2NN_model()
         self.ht_2D_list = []
         data_to_save = {}
         path_to_save = f"./data/matrices/D2NN/base_{IT}.pt"
+
+        alphas = torch.arange(0, torch.pi, torch.pi/self.n_alphas)
+
         delta = torch.pi/10
-        thetas = torch.linspace(0+delta, torch.pi-delta, self.n_patterns//4)
+        thetas_1 = torch.linspace(0+delta, torch.pi/2-delta, self.n_thetas//2)
+        thetas_2 = torch.linspace(torch.pi/2+delta, torch.pi-delta, self.n_thetas-self.n_thetas//2)
+        thetas = torch.cat((thetas_1, thetas_2))
+
         k = 2 * torch.pi / PhysicalModel.lambda_
-        # change x angle direction
-        for i in range(self.n_patterns//4):
-            theta_i = thetas[i]
-            # x direction
-            phi_x = torch.linspace(0, self.nx*k*self.dx*torch.cos(theta_i), self.nx)
-            phi_xy = torch.tile(phi_x, (self.nx,1))
-            input_field_i = torch.ones(self.nx, self.nx) * torch.exp(1j * phi_xy)
-            ht_2D = self.get_D2NN_output_field(input_field_i)
-            self.ht_2D_list.append(ht_2D)
-            data_to_save[f"p_{4*i}"] = ht_2D
-            # y direction
-            phi_y = torch.linspace(0, self.nx*k*self.dy*torch.cos(theta_i), self.nx)
-            phi_y = phi_y.unsqueeze(1)
-            phi_xy = torch.tile(phi_y, (1, self.nx))
-            input_field_i = torch.ones(self.nx, self.nx) * torch.exp(1j * phi_xy)
-            ht_2D = self.get_D2NN_output_field(input_field_i)
-            self.ht_2D_list.append(ht_2D)
-            data_to_save[f"p_{4*i+1}"] = ht_2D
-            # -y,x direction
-            phi_xy = manhattan_distances(torch.tensor((0,0)), self.nx)
-            phi_xy = phi_xy * (1/torch.sqrt(torch.tensor(2))) * k * self.dx*torch.cos(theta_i)
-            input_field_i = torch.ones(self.nx, self.nx) * torch.exp(1j * phi_xy)
-            ht_2D = self.get_D2NN_output_field(input_field_i)
-            self.ht_2D_list.append(ht_2D)
-            data_to_save[f"p_{4*i+2}"] = ht_2D
-            # y,x direction
-            phi_xy = manhattan_distances(torch.tensor((0,self.nx-1)), self.nx)
-            phi_xy = phi_xy * (1/torch.sqrt(torch.tensor(2))) * k * self.dx*torch.cos(theta_i)
-            input_field_i = torch.ones(self.nx, self.nx) * torch.exp(1j * phi_xy)
-            ht_2D = self.get_D2NN_output_field(input_field_i)
-            self.ht_2D_list.append(ht_2D)
-            data_to_save[f"p_{4*i+3}"] = ht_2D
+
+        xx = torch.arange(self.nx).unsqueeze(0).repeat(self.nx, 1) * self.dx
+        yy = torch.arange(self.ny).unsqueeze(1).repeat(1, self.ny) * self.dy
+        
+        for i in range(self.n_alphas):
+            alpha_i = alphas[i]
+            ysina_xcosa = yy*torch.sin(alpha_i) + xx*torch.cos(alpha_i)
+            for j in range(self.n_thetas):
+                theta_j = thetas[j]
+                phi_xy = k * ysina_xcosa * torch.cos(theta_j)
+                input_field_i = torch.ones(self.nx, self.ny) * torch.exp(1j * phi_xy)
+                ht_2D = self.get_D2NN_output_field(input_field_i)
+                self.ht_2D_list.append(ht_2D)
+                data_to_save[f"p_{self.n_thetas*i+j}"] = ht_2D
         if IT != -1:
             torch.save(data_to_save, path_to_save)
 

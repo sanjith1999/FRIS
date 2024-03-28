@@ -16,11 +16,13 @@ class LinearizedModel:
     # Class Variables
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    def __init__(self, nx=16, ny=16, nz=16, n_patterns=2, dd_factor=1, n_planes=1):
+    def __init__(self, nx=16, ny=16, nz=16, n_alphas=2, n_thetas=1, dd_factor=1, n_planes=1):
         self.nx, self.ny, self.nz = nx, ny, nz
         self.dd_factor = dd_factor
         self.n_planes = n_planes
-        self.n_patterns = n_patterns
+        self.n_alphas = n_alphas
+        self.n_thetas = n_thetas
+        self.n_patterns = self.n_alphas * self.n_thetas
         self.measure_pp = int(nx / self.dd_factor) * int(ny / self.dd_factor)
         self.dx, self.dy, self.dz = PhysicalModel.dx, PhysicalModel.dy, PhysicalModel.dz
 
@@ -38,7 +40,7 @@ class LinearizedModel:
         return desc
 
     def init_models(self, LOAD_IT=-1):
-        self.PM = PhysicalModel(self.nx, self.ny, self.nz, self.n_patterns, self.dd_factor, self.n_planes, self.device)
+        self.PM = PhysicalModel(self.nx, self.ny, self.nz, self.n_alphas, self.n_thetas, self.dd_factor, self.n_planes, self.device)
         if LOAD_IT >= 0:
             self.PM.load_psf(LOAD_IT)
         else:
