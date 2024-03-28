@@ -1,6 +1,6 @@
 from libs.forward_lib.physical_model import PhysicalModel
 import torch
-from libs.forward_lib.visualizer import show_planes_z, visualize_SSIM
+from libs.forward_lib.visualizer import show_planes_z, visualize_SSIM, show_image
 
 
 # noinspection PyAttributeOutsideInit
@@ -103,3 +103,9 @@ class FieldModel:
         plane_step = max(1, round(separation / self.PM.dz))
         n_planes = int(self.nz // plane_step)
         show_planes_z(self.H2.detach().cpu().numpy(), title=f"Separation: {separation}um", z_planes=[i * plane_step for i in range(n_planes)])
+
+    def zoom_plane(self, p_number = 1, fig_size= (8,8)):
+        """
+        Method: visualizing planes at the center
+        """
+        show_image((self.H2.detach().cpu().numpy()[p_number]), title=f"Zoomed P ~ {p_number}", fig_size=fig_size)
